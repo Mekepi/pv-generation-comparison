@@ -1,0 +1,8 @@
+# Core dependencies
+numpy>=1.21.0           # Array processing and math operations
+scipy>=1.7.0            # Spatial algorithms (cKDTree)
+matplotlib>=3.5.0       # Visualization engine
+psutil>=5.9.0           # CPU core detection
+
+# Development extras (optional)
+mypy>=0.910             # Static type checking
