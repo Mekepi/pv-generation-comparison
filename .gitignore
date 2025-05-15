@@ -2,8 +2,8 @@ data/*
 !data/.gitkeep
 !data/timeseries/.gitkeep
 !data/timeseries_coords/.gitkeep
-!data/ventures/.gitkeep
 !data/usine_generation/.gitkeep
+!data/ventures/.gitkeep
 
 outputs/*
 !outputs/plot/.gitkeep
