@@ -234,6 +234,40 @@ def curves_gen(venture_data:list[str], venture_coord:list[float], timeseries_coo
         
         average_day_radiation_plot(ploting, venture_coord, venture_data, city_plot_folder, header)
 
+def usine_generation_plot(state:str) -> None:
+    with open('%s\\data\\usine_generation\\GERACAO_USINA-2_2000-2024_%s.csv'%(Path(dirname(abspath(__file__))).parent, state), 'r', 512*1024, encoding='utf-8') as f:
+        lines:list[str] = f.readlines()[1:]
+    
+    avarege_year:defaultdict[str, list[float]] = defaultdict(list[float])
+    for line in lines:
+        spline:list[str] = line.split(';')
+        avarege_year[spline[0][5:10]].append(float(spline[1]))
+
+    Z:np.ndarray = np.asarray([[sum([avarege_year[day][j] for j in range(i, len(avarege_year[day]), 24)])/(len(avarege_year[day])/24) for i in range(24)] for day in sorted(avarege_year.keys())])
+
+    import matplotlib.pyplot as plt
+    from matplotlib import use
+    #use("Agg")
+
+    x:np.ndarray = np.array(list(range(1, 367)))
+    y:np.ndarray = np.array(list(range(24)))
+
+    Y, X = np.meshgrid(y, x)
+
+    ax:Axes3D = plt.axes(projection='3d')
+
+    ax.plot_surface(X, Y, Z, cmap='viridis')
+    ax.view_init(20, -50, 0)
+    ax.set_xlabel('Day of the Year [Day]')
+    ax.set_ylabel('Hour of the Day [Hour]')
+    ax.set_zlabel('Power [W]')
+    ax.set_title("Usines Generation Across the Year\n [%s]"%(state))
+    plt.tight_layout()
+    plt.show()
+    #plt.savefig("%s\\%s-3D-year-radiation-%s.png"%(city_plot_folder, ceg, plot_type), backend='Agg', dpi=200)
+    plt.close()
+
+
 def gds_generation_curve(sts:list[str] = [], geocodes:list[str] = []) -> None:
     t0:float = perf_counter()
 
@@ -243,44 +277,50 @@ def gds_generation_curve(sts:list[str] = [], geocodes:list[str] = []) -> None:
 
     timeseries_coords_folder:Path = Path('%s\\data\\timeseries_coords'%(data_folder))
 
+    states_irradiance:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = defaultdict(defaultdict[str, dict[str, np.ndarray]])
+
     with Pool(cpu_count()*2) as p:
 
-        for state in listdir(ventures_folder):
+        for state in listdir(ventures_folder)[1:]:
 
             if ((sts and not(state[:2] in sts)) or (geocodes and not(state[:2] in [states[s[:2]] for s in geocodes]))):
                 continue
 
             state_timeseries_coords_folder:str = "%s\\%s"%(timeseries_coords_folder, next(f for f in listdir(timeseries_coords_folder) if f.startswith(state)))
 
+            states_irradiance[state[:2]] = defaultdict(dict[str, np.ndarray])
+
             for city in listdir('%s\\%s'%(ventures_folder, state)):
 
                 if (geocodes and not(city[1:8] in geocodes)):
                     continue
 
-                with open("%s\\%s\\%s"%(ventures_folder, state, city), 'r', encoding='utf-8') as file:
-                    file.readline()
-                    ventures:list[str] = file.readlines()
+                with open("%s\\%s\\%s"%(ventures_folder, state, city), 'r', 8*1024*1024, encoding='utf-8') as file:
+                    ventures:list[str] = file.readlines()[1:]
 
                 city_timeseries_coords_file:Path = Path("%s\\%s"%(state_timeseries_coords_folder, next(f for f in listdir(state_timeseries_coords_folder) if f.startswith(city[:9]))))
-                city_coords:np.ndarray = np.loadtxt(city_timeseries_coords_file, delimiter=',', ndmin=2, encoding='utf-8')
+                city_timeseries_coords:np.ndarray = np.loadtxt(city_timeseries_coords_file, delimiter=',', ndmin=2, encoding='utf-8')
 
                 failty_coord:list[str] = []
                 city_ventures_coords:list[tuple[float, float]] = []
                 for venture in ventures:
-                    if (venture.split('";"')[3] != ',' and venture.split('";"')[2] != ','):
-                        city_ventures_coords.append((float('.'.join(venture.split('";"')[3].split(','))), float('.'.join(venture.split('";"')[2].split(',')))))
+                    venture_data:list[str] = venture.split('";"')
+                    if (venture_data[3] != ',' and venture_data[2] != ','):
+                        try: city_ventures_coords.append((float('.'.join(venture_data[3].split(','))), float('.'.join(venture_data[2].split(',')))))
+                        except Exception as e:
+                            print(venture)
                         continue
                     failty_coord.append(venture)
 
                 if failty_coord:
                     with open("%s\\failty_coord.csv"%(data_folder), 'a', encoding='utf-8') as f:
                         f.writelines(failty_coord)
-                
+
                 distances:list[float]
                 idxs:list[int]
-                distances, idxs = cKDTree(city_coords).query(city_ventures_coords, 1, workers=-1) # type: ignore
+                distances, idxs = cKDTree(city_timeseries_coords).query(city_ventures_coords, 1, workers=-1) # type: ignore
 
-                faridxs:list[str] = ["(%7.2f,%6.2f) (%11.6f,%6.6f) %6.2f    %s"%(*city_ventures_coords[i],*city_coords[idxs[i]],distances[i],ventures[i]) for i in range(len(distances)) if distances[i]>=0.03]
+                faridxs:list[str] = ["(%7.2f,%6.2f) (%11.6f,%6.6f) %6.2f    %s"%(*city_ventures_coords[i],*city_timeseries_coords[idxs[i]],distances[i],ventures[i]) for i in range(len(distances)) if distances[i]>=0.03]
                 
                 if faridxs:
                     makedirs("%s\\outputs\\Too Far Coords\\%s"%(data_folder, state), exist_ok=True)
@@ -289,15 +329,36 @@ def gds_generation_curve(sts:list[str] = [], geocodes:list[str] = []) -> None:
                         f.writelines(faridxs)
                         
 
-                """ cts = np.concatenate((city_ventures_coords, city_coords[idxs], np.reshape(distances, [len(distances),1])), 1)
+                """ cts = np.concatenate((city_ventures_coords, city_timeseries_coords[idxs], np.reshape(distances, [len(distances),1])), 1)
                 print(cts, sep="\n") """
-                
-                p.starmap(curves_gen, [[venture[1:-2].split('";"'), venture_coord, closest_timeseries] for (venture, venture_coord, closest_timeseries) in zip(ventures[:5], city_ventures_coords, city_coords[idxs])])
 
+                #timeseries_power_year:np.ndarray = np.asarray([[*timeseries_coord, float('.'.join(venture.split('";"')[4].split(','))), float(venture.split('";"')[27][:4])] for venture, timeseries_coord in zip(ventures, city_timeseries_coords[idxs])])
+            
+                coord_year_list:defaultdict[str, defaultdict[float, list[float]]] = defaultdict(defaultdict[float, list[float]])
+
+                for venture, timeseries_coord in zip(ventures, city_timeseries_coords[idxs]):
+                    venture_data = venture.split('";"')
+                    if ('(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0]) not in coord_year_list):
+                       coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])] = defaultdict(list[float])
+                    if (venture_data[27][:4] not in coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])]):
+                        coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])] = [0., 0.]
+                    coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])][0] += float('.'.join(venture_data[4].split(',')))
+                    coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])][1] += 1
+
+                # seprar função para paralelizar e returnar tuple(geocodigo do municipio, coord_year_list)
+                # fazer geração anual somando a potência instalada no ano ao passar pelo vetor
+
+                states_irradiance[state[:2]][city[1:8]] = {coord:np.asarray([[year, power_qtd[0], power_qtd[1]] for year, power_qtd in year_list.items()]) for coord, year_list in coord_year_list.items()}
+                
+    print(states_irradiance.keys())
+    #print(states_irradiance["SP"].keys())
+    #print([(coord, len(states_irradiance["SP"]['3550308'][coord])) for coord in states_irradiance["SP"]['3550308'].keys()])
+    print(states_irradiance["SP"]['3550308']['(-23.556890,-46.648320)'])
     print(perf_counter()-t0)
 
 if __name__ == "__main__":
-    gds_generation_curve(geocodes=['3501608'])
+    gds_generation_curve()
+    #usine_generation_plot('SP')
 
 # (0, '"CodEmpreendimento') (1, 'CodMunicipioIbge') (2, 'NumCoordNEmpreendimento') (3, 'NumCoordEEmpreendimento')
 # (4, 'MdaPotenciaInstaladaKW') (5, 'MdaAreaArranjo') (6, 'QtdModulos') (7, 'MdaPotenciaModulos') (8, 'NomModeloModulo')
