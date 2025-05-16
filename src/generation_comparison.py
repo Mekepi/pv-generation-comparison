@@ -312,11 +312,8 @@ def city_process(data_folder:Path, ventures_folder:Path, state_timeseries_coords
         coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])][1] += 1
     
     return (city, coord_year_list)
-    
 
-def gds_generation_curve(sts:list[str] = [], geocodes:list[str] = []) -> None:
-    t0:float = perf_counter()
-
+def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict[str, defaultdict[str, dict[str, np.ndarray]]]:
     data_folder:Path = Path(dirname(abspath(__file__))).parent
 
     ventures_folder:Path = Path('%s\\data\\ventures'%(data_folder))
@@ -344,22 +341,94 @@ def gds_generation_curve(sts:list[str] = [], geocodes:list[str] = []) -> None:
                 [(data_folder, ventures_folder, state_timeseries_coords_folder, state, city) for city in listdir('%s\\%s'%(ventures_folder, state)) if not(geocodes) or (city[1:8] in geocodes)]
             )
 
-            # seprar função para paralelizar e returnar tuple(geocodigo do municipio, coord_year_list)
-            # fazer geração anual somando a potência instalada no ano ao passar pelo vetor
-
             coord_year_list:defaultdict[str, defaultdict[float, list[float]]]
             for city, coord_year_list in cities_dicts:
                 states_irradiance[state[:2]][city[1:8]] = {coord:np.asarray([[year, power_qtd[0], power_qtd[1]] for year, power_qtd in year_list.items()]) for coord, year_list in coord_year_list.items()}
-                
-    print(states_irradiance.keys())
-    #print(states_irradiance["SP"].keys())
-    #print([(coord, len(states_irradiance["SP"]['3550308'][coord])) for coord in states_irradiance["SP"]['3550308'].keys()])
-    print(states_irradiance["SP"]['3550308']['(-23.556890,-46.648320)'])
-    print(perf_counter()-t0)
+
+            print('%s processed'%(state[:2]))
+
+    return states_irradiance
+
+def t_correction(g:float, t2m:float) -> float:
+    Tc:float = (t2m+g*25/800)
+    Tc = Tc if Tc>25 else 25
+    
+    return (1 - 0.0045*(Tc-25))
+
+def plot_generation(geocode:str, city:dict[str, np.ndarray]) -> None:
+    import matplotlib.pyplot as plt
+    from matplotlib import use
+    #use("Agg")
+
+    Z0:dict[int, np.ndarray] = {}
+    for coord, year_power_qty_array in city.items():
+        timeseries_path:Path =  Path(dirname(abspath(__file__))).parent.joinpath('data\\timeseries\\%s\\[%s]\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, geocode, coord))
+        with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
+            lines:list[str] = f.readlines()[9:-12]
+
+        lines_array:np.ndarray = np.asarray([
+            [
+                int(''.join(line.split(',')[0].split(':'))),
+                sum([float(v) for v in line.split(',')[1:4]]),
+                float(line.split(',')[5])
+            ]
+            for line in lines if int(line[:4]) >= int(year_power_qty_array[0,0])])
+
+        current_year:int = int(year_power_qty_array[0,0])
+        current_power:float = year_power_qty_array[0,1]*0.95*0.97*0.98
+        j:int = 0
+        for i in range(0, lines_array.shape[0], 24):
+            if (lines_array[i, 0]//(10**8) > current_year):
+                current_year = lines_array[i, 0]//(10**8)
+                current_power = current_power*0.995 + year_power_qty_array[year_power_qty_array[:, 0]==current_year][0, 1]*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==current_year].size>0) else 0
+                j = 0
+            
+            if (current_year not in Z0):
+                Z0[current_year] = np.zeros((366 if current_year%4==0 else 365, 24))
+
+            day_irradiation_temperature:np.ndarray = lines_array[i:i+24, 1:]
+
+            try: Z0[current_year][j] += (day_irradiation_temperature[:, 0]*current_power/1000)*np.vectorize(t_correction)(day_irradiation_temperature[:,0], day_irradiation_temperature[:,1])
+            except Exception as e:
+                print(j, current_year, 'bissexto' if current_year%4==0 else 'normal', Z0[current_year].shape, lines_array[i])
+                raise e
+            j += 1
+    
+    for year in Z0.keys():
+        Z0[year] = np.concatenate((Z0[year][:, 3:], Z0[year][:, :3]), 1)
+
+    Z = Z0[2023]/1000
+
+    x:np.ndarray = np.array(list(range(1, 366)))
+    y:np.ndarray = np.array(list(range(24)))
+
+    Y, X = np.meshgrid(y, x)
+
+    ax:Axes3D = plt.axes(projection='3d')
+
+    ax.plot_surface(X, Y, Z, cmap='viridis')
+    ax.view_init(20, -50, 0)
+    ax.set_xlabel('Day of the Year [Day]')
+    ax.set_ylabel('Hour of the Day [Hour]')
+    ax.set_zlabel('Power [MW]')
+    ax.set_title('PV Yield Across the Year\n\n%s'%(states[geocode[:2]]))
+    plt.tight_layout()
+    plt.show()
+    #plt.savefig("%s\\%s-3D-year-radiation-%s.png"%(city_plot_folder, ceg, plot_type), backend='Agg', dpi=200)
+    plt.close()
+
+def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
+    t0:float = perf_counter()
+    states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = ventures_process(sts, geocodes)
+    print('Ventures process execution time:', perf_counter()-t0)
+
+    with Pool(cpu_count()) as p:
+        for state in states_cities_coords_array.values():
+            p.starmap(plot_generation, state.items())
 
 if __name__ == "__main__":
-    gds_generation_curve()
-    #usine_generation_plot('SP')
+    main(geocodes=['3550308'])
+    usine_generation_plot('SP')
 
 # (0, '"CodEmpreendimento') (1, 'CodMunicipioIbge') (2, 'NumCoordNEmpreendimento') (3, 'NumCoordEEmpreendimento')
 # (4, 'MdaPotenciaInstaladaKW') (5, 'MdaAreaArranjo') (6, 'QtdModulos') (7, 'MdaPotenciaModulos') (8, 'NomModeloModulo')
