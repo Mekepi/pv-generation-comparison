@@ -2,7 +2,7 @@ import numpy as np
 from time import perf_counter
 from datetime import datetime
 from os import listdir
-from os.path import dirname, abspath
+from os.path import dirname, abspath, isfile
 from pathlib import Path
 from scipy.spatial import cKDTree
 from psutil import cpu_count
@@ -11,6 +11,7 @@ from gzip import open as gzopen
 from os import makedirs
 from collections import defaultdict
 from mpl_toolkits.mplot3d import Axes3D #type: ignore
+import pickle
 
 states:dict[str, str] = {
     "12": "AC", "27": "AL", "13": "AM", "16": "AP", "29": "BA", "23": "CE", "53": "DF",
@@ -234,39 +235,47 @@ def curves_gen(venture_data:list[str], venture_coord:list[float], timeseries_coo
         
         average_day_radiation_plot(ploting, venture_coord, venture_data, city_plot_folder, header)
 
-def usine_generation_plot(state:str) -> None:
-    with open('%s\\data\\usine_generation\\GERACAO_USINA-2_2000-2024_%s.csv'%(Path(dirname(abspath(__file__))).parent, state), 'r', 512*1024, encoding='utf-8') as f:
-        lines:list[str] = f.readlines()[1:]
-    
-    avarege_year:defaultdict[str, list[float]] = defaultdict(list[float])
-    for line in lines:
-        spline:list[str] = line.split(';')
-        avarege_year[spline[0][5:10]].append(float(spline[1]))
-
-    Z:np.ndarray = np.asarray([[sum([avarege_year[day][j] for j in range(i, len(avarege_year[day]), 24)])/(len(avarege_year[day])/24) for i in range(24)] for day in sorted(avarege_year.keys())])
-
+def usine_plot(state:str, Z:np.ndarray) -> None:
     import matplotlib.pyplot as plt
     from matplotlib import use
     #use("Agg")
 
-    x:np.ndarray = np.array(list(range(1, 367)))
-    y:np.ndarray = np.array(list(range(24)))
+    x:np.ndarray = np.arange(1, Z.shape[0]+1)
+    y:np.ndarray = np.arange(Z.shape[1])
 
     Y, X = np.meshgrid(y, x)
 
     ax:Axes3D = plt.axes(projection='3d')
 
-    ax.plot_surface(X, Y, Z, cmap='viridis')
+    ax.plot_surface(X, Y, Z[:,:,1], cmap='viridis')
     ax.view_init(20, -50, 0)
-    ax.set_xlabel('Day of the Year [Day]')
+    ax.set_xlabel('Day of the Data [Day]')
     ax.set_ylabel('Hour of the Day [Hour]')
-    ax.set_zlabel('Power [W]')
-    ax.set_title("Usines Generation Across the Year\n [%s]"%(state))
+    ax.set_zlabel('Power [MW]')
+    ax.set_title("Usines Generation Across (%02i/%i:%02i/%i)\n [%s]"%(Z[0,0,0]%1000//100, Z[0,0,0]//10000, Z[-1,0,0]%1000//100, Z[-1,0,0]//10000, state))
     plt.tight_layout()
     plt.show()
     #plt.savefig("%s\\%s-3D-year-radiation-%s.png"%(city_plot_folder, ceg, plot_type), backend='Agg', dpi=200)
     plt.close()
 
+def state_usines_pv_mmd_generation(state:str) -> tuple[str, np.ndarray]:
+    with open('%s\\data\\usine_generation\\GERACAO_USINA-2_2000-2024_%s.csv'%(Path(dirname(abspath(__file__))).parent, state), 'r', 512*1024, encoding='utf-8') as f:
+            lines:list[str] = f.readlines()[1:]
+    
+    Z:np.ndarray = np.asarray([[[float(''.join(lines[j].split(';')[0][:10].split('-'))), float(lines[j].split(';')[1])] for j in range(i, i+24)] for i in range(0, len(lines), 24)])
+
+    return (state, Z)
+
+def usines_pv_mmd_generation(sts:list[str] = []) -> dict[str, np.ndarray]:
+
+    if not(sts):
+        sts = list(states.values())
+
+    with Pool(cpu_count()) as p:
+        result:list[tuple] = p.map(state_usines_pv_mmd_generation, sts)
+
+    return {state:array for state, array in result}
+    
 def city_process(data_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[float, list[float]]]]:
 
     with open("%s\\%s\\%s"%(ventures_folder, state, city), 'r', 8*1024*1024, encoding='utf-8') as file:
@@ -399,8 +408,8 @@ def plot_generation(geocode:str, city:dict[str, np.ndarray]) -> None:
 
     Z = Z0[2023]/1000
 
-    x:np.ndarray = np.array(list(range(1, 366)))
-    y:np.ndarray = np.array(list(range(24)))
+    x:np.ndarray = np.array(list(range(1, Z.shape[0]+1)))
+    y:np.ndarray = np.array(list(range(Z.shape[1])))
 
     Y, X = np.meshgrid(y, x)
 
@@ -418,17 +427,39 @@ def plot_generation(geocode:str, city:dict[str, np.ndarray]) -> None:
     plt.close()
 
 def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
+
     t0:float = perf_counter()
-    states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = ventures_process(sts, geocodes)
+    if (not(isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl')))):
+        states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = ventures_process()
+        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'wb', 20*1024*1024) as fout:
+            pickle.dump(states_cities_coords_array, fout)
+    else:
+        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'rb', 20*1024*1024) as fin:
+            states_cities_coords_array = pickle.load(fin)
     print('Ventures process execution time:', perf_counter()-t0)
 
-    with Pool(cpu_count()) as p:
-        for state in states_cities_coords_array.values():
-            p.starmap(plot_generation, state.items())
+    """ print(states_cities_coords_array.keys())
+    print(states_cities_coords_array['SP'].keys())
+    print([(coord, array.shape[0]) for coord, array in  states_cities_coords_array['SP']['3550308'].items()]) """
+
+    t0 = perf_counter()
+    if (not(isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl')))):
+        per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
+        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl'), 'wb', 6*1024*1024) as fout:
+            pickle.dump(per_state_usines_pv_mmd_generation, fout)
+    else:
+        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl'), 'rb', 6*1024*1024) as fin:
+            per_state_usines_pv_mmd_generation = pickle.load(fin)
+    print('Usines process execution time:', perf_counter()-t0)
+
+    """ print(*["(%s, %s)\n"%(state, str(array.shape)) for state, array in per_state_usines_pv_mmd_generation.items()])
+    usine_plot('SP', per_state_usines_pv_mmd_generation['SP']) """
+
+    #continuar
 
 if __name__ == "__main__":
     main(geocodes=['3550308'])
-    usine_generation_plot('SP')
+    #usine_generation('SP')
 
 # (0, '"CodEmpreendimento') (1, 'CodMunicipioIbge') (2, 'NumCoordNEmpreendimento') (3, 'NumCoordEEmpreendimento')
 # (4, 'MdaPotenciaInstaladaKW') (5, 'MdaAreaArranjo') (6, 'QtdModulos') (7, 'MdaPotenciaModulos') (8, 'NomModeloModulo')
