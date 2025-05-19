@@ -20,6 +20,8 @@ states:dict[str, str] = {
     "11": "RO", "14": "RR", "42": "SC", "35": "SP", "28": "SE", "17": "TO"
 }
 
+#old
+
 def loss(g:float, t:float, install_year:int) -> float:
     Tc:float = (t+g*25/800)
     Tc = Tc if Tc>25 else 25
@@ -235,10 +237,12 @@ def curves_gen(venture_data:list[str], venture_coord:list[float], timeseries_coo
         
         average_day_radiation_plot(ploting, venture_coord, venture_data, city_plot_folder, header)
 
+#usine
+
 def usine_plot(state:str, Z:np.ndarray) -> None:
     import matplotlib.pyplot as plt
     from matplotlib import use
-    #use("Agg")
+    use("Agg")
 
     x:np.ndarray = np.arange(1, Z.shape[0]+1)
     y:np.ndarray = np.arange(Z.shape[1])
@@ -254,8 +258,8 @@ def usine_plot(state:str, Z:np.ndarray) -> None:
     ax.set_zlabel('Power [MW]')
     ax.set_title("Usines Generation Across (%02i/%i:%02i/%i)\n [%s]"%(Z[0,0,0]%1000//100, Z[0,0,0]//10000, Z[-1,0,0]%1000//100, Z[-1,0,0]//10000, state))
     plt.tight_layout()
-    plt.show()
-    #plt.savefig("%s\\%s-3D-year-radiation-%s.png"%(city_plot_folder, ceg, plot_type), backend='Agg', dpi=200)
+    #plt.show()
+    plt.savefig("%s\\outputs\\Usines MMD PV Generation\\usines-%s.png"%(Path(dirname(abspath(__file__))).parent, state), backend='Agg', dpi=200)
     plt.close()
 
 def state_usines_pv_mmd_generation(state:str) -> tuple[str, np.ndarray]:
@@ -275,7 +279,9 @@ def usines_pv_mmd_generation(sts:list[str] = []) -> dict[str, np.ndarray]:
         result:list[tuple] = p.map(state_usines_pv_mmd_generation, sts)
 
     return {state:array for state, array in result}
-    
+
+#ventures
+
 def city_process(data_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[float, list[float]]]]:
 
     with open("%s\\%s\\%s"%(ventures_folder, state, city), 'r', 8*1024*1024, encoding='utf-8') as file:
@@ -358,55 +364,75 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
 
     return states_irradiance
 
-def t_correction(g:float, t2m:float) -> float:
-    Tc:float = (t2m+g*25/800)
-    Tc = Tc if Tc>25 else 25
+def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
+    timeseries_path:Path =  Path(dirname(abspath(__file__))).parent.joinpath('data\\timeseries\\%s\\[%s]\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, geocode, coord))
+    with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
+        lines:list[str] = f.readlines()[9:-12]
+
+    lines_array:np.ndarray = np.asarray([
+        [
+            int(''.join(line.split(',')[0].split(':'))),
+            sum([float(v) for v in line.split(',')[1:4]]),
+            float(line.split(',')[5])
+        ]
+        for line in lines if int(line[:4]) >= int(year_power_qty_array[0,0])])
+
+    current_year:int = int(year_power_qty_array[0,0])
+    current_power:float = year_power_qty_array[0,1]*0.95*0.97*0.98
+    j:int = 0
+
+    def t_correction(g:float, t2m:float) -> float:
+        Tc:float = (t2m+g*25/800)
+        Tc = Tc if Tc>25 else 25
+        
+        return (1 - 0.0045*(Tc-25))
     
-    return (1 - 0.0045*(Tc-25))
+    Z0:dict[int, np.ndarray] = {}
+    for i in range(0, lines_array.shape[0], 24):
+        if (lines_array[i, 0]//(10**8) > current_year):
+            current_year = lines_array[i, 0]//(10**8)
+            current_power = current_power*0.995 + year_power_qty_array[year_power_qty_array[:, 0]==current_year][0, 1]*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==current_year].size>0) else 0
+            j = 0
+        
+        if (current_year not in Z0):
+            Z0[current_year] = np.zeros((366 if current_year%4==0 else 365, 24))
+
+        day_irradiation_temperature:np.ndarray = lines_array[i:i+24, 1:]
+
+        try: Z0[current_year][j] += (day_irradiation_temperature[:, 0]*current_power/1000)*np.vectorize(t_correction)(day_irradiation_temperature[:,0], day_irradiation_temperature[:,1])
+        except Exception as e:
+            print(j, current_year, 'bissexto' if current_year%4==0 else 'normal', Z0[current_year].shape, lines_array[i])
+            raise e
+        j += 1
+    
+    return Z0 
 
 def plot_generation(geocode:str, city:dict[str, np.ndarray]) -> None:
     import matplotlib.pyplot as plt
     from matplotlib import use
     #use("Agg")
 
-    Z0:dict[int, np.ndarray] = {}
-    for coord, year_power_qty_array in city.items():
-        timeseries_path:Path =  Path(dirname(abspath(__file__))).parent.joinpath('data\\timeseries\\%s\\[%s]\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, geocode, coord))
-        with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
-            lines:list[str] = f.readlines()[9:-12]
+    with Pool(cpu_count()) as p:
+        Z0s:list[dict[int, np.ndarray]] = p.starmap(coord_process, [(geocode, coord, year_power_qty_array) for coord, year_power_qty_array in city.items()])
 
-        lines_array:np.ndarray = np.asarray([
-            [
-                int(''.join(line.split(',')[0].split(':'))),
-                sum([float(v) for v in line.split(',')[1:4]]),
-                float(line.split(',')[5])
-            ]
-            for line in lines if int(line[:4]) >= int(year_power_qty_array[0,0])])
-
-        current_year:int = int(year_power_qty_array[0,0])
-        current_power:float = year_power_qty_array[0,1]*0.95*0.97*0.98
-        j:int = 0
-        for i in range(0, lines_array.shape[0], 24):
-            if (lines_array[i, 0]//(10**8) > current_year):
-                current_year = lines_array[i, 0]//(10**8)
-                current_power = current_power*0.995 + year_power_qty_array[year_power_qty_array[:, 0]==current_year][0, 1]*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==current_year].size>0) else 0
-                j = 0
-            
-            if (current_year not in Z0):
-                Z0[current_year] = np.zeros((366 if current_year%4==0 else 365, 24))
-
-            day_irradiation_temperature:np.ndarray = lines_array[i:i+24, 1:]
-
-            try: Z0[current_year][j] += (day_irradiation_temperature[:, 0]*current_power/1000)*np.vectorize(t_correction)(day_irradiation_temperature[:,0], day_irradiation_temperature[:,1])
-            except Exception as e:
-                print(j, current_year, 'bissexto' if current_year%4==0 else 'normal', Z0[current_year].shape, lines_array[i])
-                raise e
-            j += 1
+    preZ:dict[int, np.ndarray] = {}
+    for Z0 in Z0s:
+        for year, array in Z0.items():
+            if year not in preZ:
+                preZ[year] = np.zeros_like(array)
+            preZ[year] += array
     
-    for year in Z0.keys():
-        Z0[year] = np.concatenate((Z0[year][:, 3:], Z0[year][:, :3]), 1)
+    if (states[geocode[:2]] == "AC"):
+        time_correction:int = 5
+    elif (states[geocode[:2]] == "AM"):
+        time_correction = 4
+    elif (geocode == "2605459"):
+        time_correction = 2
+    else:
+        time_correction = 3
 
-    Z = Z0[2023]/1000
+    Z:np.ndarray = np.concatenate(list(preZ.values()))/1000
+    Z = np.concatenate((Z[:, time_correction:], Z[:, :time_correction]), 1)
 
     x:np.ndarray = np.array(list(range(1, Z.shape[0]+1)))
     y:np.ndarray = np.array(list(range(Z.shape[1])))
@@ -417,13 +443,13 @@ def plot_generation(geocode:str, city:dict[str, np.ndarray]) -> None:
 
     ax.plot_surface(X, Y, Z, cmap='viridis')
     ax.view_init(20, -50, 0)
-    ax.set_xlabel('Day of the Year [Day]')
+    ax.set_xlabel('Day of the Data [Day]')
     ax.set_ylabel('Hour of the Day [Hour]')
     ax.set_zlabel('Power [MW]')
-    ax.set_title('PV Yield Across the Year\n\n%s'%(states[geocode[:2]]))
+    ax.set_title('PV Yield Across the Data\n\n%s'%(geocode))
     plt.tight_layout()
-    plt.show()
-    #plt.savefig("%s\\%s-3D-year-radiation-%s.png"%(city_plot_folder, ceg, plot_type), backend='Agg', dpi=200)
+    #plt.show()
+    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\ventures-%s-[%s].png"%(Path(dirname(abspath(__file__))).parent, states[geocode[:2]], geocode), backend='Agg', dpi=200)
     plt.close()
 
 def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
@@ -438,9 +464,12 @@ def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
             states_cities_coords_array = pickle.load(fin)
     print('Ventures process execution time:', perf_counter()-t0)
 
-    """ print(states_cities_coords_array.keys())
-    print(states_cities_coords_array['SP'].keys())
-    print([(coord, array.shape[0]) for coord, array in  states_cities_coords_array['SP']['3550308'].items()]) """
+    #print(states_cities_coords_array.keys())
+    #print(states_cities_coords_array['SP'].keys())
+    #print(sorted([(coord, array[0,0], array[0, 1]) for coord, array in  states_cities_coords_array['SP']['3550308'].items()], key=lambda e: e[1]))
+    t0 = perf_counter()
+    plot_generation('3550308', states_cities_coords_array['SP']['3550308'])
+    print('Ventures generetaion plot execution time:', perf_counter()-t0)
 
     t0 = perf_counter()
     if (not(isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl')))):
