@@ -407,20 +407,21 @@ def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> di
     
     return Z0 
 
-def plot_generation(geocode:str, city:dict[str, np.ndarray]) -> None:
+def plot_generation(state:dict[str, dict[str, np.ndarray]]) -> None:
     import matplotlib.pyplot as plt
     from matplotlib import use
     #use("Agg")
 
-    with Pool(cpu_count()) as p:
-        Z0s:list[dict[int, np.ndarray]] = p.starmap(coord_process, [(geocode, coord, year_power_qty_array) for coord, year_power_qty_array in city.items()])
-
     preZ:dict[int, np.ndarray] = {}
-    for Z0 in Z0s:
-        for year, array in Z0.items():
-            if year not in preZ:
-                preZ[year] = np.zeros_like(array)
-            preZ[year] += array
+    with Pool(cpu_count()) as p:
+        for geocode, coords_dict in state.items():
+            Z0s:list[dict[int, np.ndarray]] = p.starmap(coord_process, [(geocode, coord, year_power_qty_array) for coord, year_power_qty_array in coords_dict.items()])
+            
+            for Z0 in Z0s:
+                for year, array in Z0.items():
+                    if year not in preZ:
+                        preZ[year] = np.zeros_like(array)
+                    preZ[year] += array
     
     if (states[geocode[:2]] == "AC"):
         time_correction:int = 5
@@ -446,13 +447,28 @@ def plot_generation(geocode:str, city:dict[str, np.ndarray]) -> None:
     ax.set_xlabel('Day of the Data [Day]')
     ax.set_ylabel('Hour of the Day [Hour]')
     ax.set_zlabel('Power [MW]')
-    ax.set_title('PV Yield Across the Data\n\n%s'%(geocode))
+    ax.set_title('PV Yield Across the Data\n\n%s'%(states[list(state.keys())[0][:2]]))
     plt.tight_layout()
     #plt.show()
-    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\ventures-%s-[%s].png"%(Path(dirname(abspath(__file__))).parent, states[geocode[:2]], geocode), backend='Agg', dpi=200)
+    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s.png"%(Path(dirname(abspath(__file__))).parent, states[list(state.keys())[0][:2]]), backend='Agg', dpi=200)
     plt.close()
 
+def save_timeseries_coords_filtered(states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]], monolith:bool=False) -> None:
+    for state, cities in states_cities_coords_array.items():
+        makedirs('%s\\data\\timeseries_coords_filtered\\%s'%(Path(dirname(abspath(__file__))).parent, state), exist_ok=True)
+        
+        if monolith:
+            with open('%s\\data\\timeseries_coords_filtered\\%s\\%s_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, state), 'w', 1024**2, 'utf-8') as fout:
+                for coords in cities.values():
+                    fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
+        else:
+            for geocode, coords in cities.items():
+                with open('%s\\data\\timeseries_coords_filtered\\%s\\[%s]_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, geocode), 'w', 1024**2, 'utf-8') as fout:
+                    fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
+
 def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
+
+    #Ventures
 
     t0:float = perf_counter()
     if (not(isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl')))):
@@ -464,14 +480,34 @@ def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
             states_cities_coords_array = pickle.load(fin)
     print('Ventures process execution time:', perf_counter()-t0)
 
+    """ t0 = perf_counter()
+    save_timeseries_coords_filtered(states_cities_coords_array, True)
+    print('Save filtered timeseries coords time:', perf_counter()-t0) """
+
     #print(states_cities_coords_array.keys())
     #print(states_cities_coords_array['SP'].keys())
     #print(sorted([(coord, array[0,0], array[0, 1]) for coord, array in  states_cities_coords_array['SP']['3550308'].items()], key=lambda e: e[1]))
-    t0 = perf_counter()
-    plot_generation('3550308', states_cities_coords_array['SP']['3550308'])
-    print('Ventures generetaion plot execution time:', perf_counter()-t0)
+    #print(list(states_cities_coords_array['SP']['3550308'].keys())[0])
 
-    t0 = perf_counter()
+    #Ventures coordinates data volume analysis
+
+    total:int = 0
+    for state, cities in states_cities_coords_array.items():
+        subtotal:int = sum([len(city.keys()) for city in cities.values()])
+        total += subtotal
+        print('%s: %5i timeseries coords (%5.2f GiB compressed -> %5.1fmin)'%(state, subtotal, 1650*subtotal/(1024**2), 0.42981*subtotal/60))
+    print('Total space required: %i timeseries (%.2f GiB after compression)'%(total, 1650*total/(1024**2)))
+    print('Total minimum expected download time: Uncompressed %.2f TiB -> %.1fh'%(7.65*total/(1024**2), 0.42981*total/(60**2)))
+
+    #Ventures plot
+
+    """ t0 = perf_counter()
+    plot_generation(states_cities_coords_array['SP'])
+    print('Ventures generetaion plot execution time:', perf_counter()-t0) """
+
+    #Usines
+
+    """ t0 = perf_counter()
     if (not(isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl')))):
         per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
         with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl'), 'wb', 6*1024*1024) as fout:
@@ -481,13 +517,13 @@ def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
             per_state_usines_pv_mmd_generation = pickle.load(fin)
     print('Usines process execution time:', perf_counter()-t0)
 
-    """ print(*["(%s, %s)\n"%(state, str(array.shape)) for state, array in per_state_usines_pv_mmd_generation.items()])
+    print(*["(%s, %s)\n"%(state, str(array.shape)) for state, array in per_state_usines_pv_mmd_generation.items()])
     usine_plot('SP', per_state_usines_pv_mmd_generation['SP']) """
 
     #continuar
 
 if __name__ == "__main__":
-    main(geocodes=['3550308'])
+    main()
     #usine_generation('SP')
 
 # (0, '"CodEmpreendimento') (1, 'CodMunicipioIbge') (2, 'NumCoordNEmpreendimento') (3, 'NumCoordEEmpreendimento')
