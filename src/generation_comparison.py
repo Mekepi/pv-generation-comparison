@@ -408,6 +408,9 @@ def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> di
     return Z0 
 
 def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
+    if (int(year_power_qty_array[0,0])>2024):
+        return {}
+    
     timeseries_path:Path =  Path('C:\\Programas\\timeseries\\%s\\monolith\\timeseries%s.csv.gz'%(state, coord))
     with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
         lines:list[str] = f.readlines()[9:-12]
@@ -418,7 +421,21 @@ def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray
             sum([float(v) for v in line.split(',')[1:4]]), #summed G's
             float(line.split(',')[5]) #T2m
         ]
-        for line in lines if int(line[:4]) >= int(year_power_qty_array[0,0])])
+        for line in lines if int(line[:4]) >= np.min([int(year_power_qty_array[0,0]), 2020])])
+    
+    arr2024:np.ndarray = np.zeros((366*24, 3))
+    arr2024[:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 1:]
+    for i in [2021, 2022, 2023]:
+        arr2024[:59*24, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][:59*24, 1:]
+        arr2024[60*24:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:, 1:]
+        arr2024[59*24:60*24, 1:] += (timeseries_array[timeseries_array[:, 0]//(10**8) == i][58*24:59*24, 1:]+timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:60*24, 1:])/2
+    
+    arr2024[:, 0] = timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 0]%(10**8)
+    arr2024[:, 0] += 2024*(10**8)
+
+    arr2024[:, 1:] /= 4
+
+    timeseries_array = np.concatenate((timeseries_array, arr2024))
 
     current_year:int = int(year_power_qty_array[0,0])
     current_power:float = year_power_qty_array[0,1]*0.95*0.97*0.98
@@ -431,7 +448,7 @@ def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray
         return (1 - 0.0045*(Tc-25))
     
     Z0:dict[int, np.ndarray] = {}
-    for i in range(0, timeseries_array.shape[0], 24):
+    for i in range(np.argwhere(timeseries_array[:, 0]//(10**8) == int(year_power_qty_array[0,0]))[0, 0], timeseries_array.shape[0], 24):
         if (timeseries_array[i, 0]//(10**8) > current_year):
             current_year = int(timeseries_array[i, 0]//(10**8))
             current_power = current_power*0.995 + (year_power_qty_array[year_power_qty_array[:, 0]==current_year][0, 1]*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==current_year].size>0) else 0)
@@ -493,7 +510,8 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
         with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'rb', 50*(1024**2)) as fin:
             preZ = pickle.load(fin)
 
-    #print(*['%4i, %s, %5.2f'%(key, preZ[key].shape, np.sum(preZ[key])/1000) for key in sorted(preZ.keys())], sep='\n')
+    all_coords_dict = {key:coords_dict[key][coords_dict[key][:,0].argsort()] for coords_dict in state.values() for key in coords_dict.keys()}
+    print(*['%4i, %5.2fMW, %5.2fMWh'%(key, sum([np.sum(array[array[:, 0]<=key][:, 1]) for array in all_coords_dict.values()])/1000, np.sum(preZ[key])/1000) for key in sorted(preZ.keys())], sep='\n')
     
     if (states[list(state.keys())[0][:2]] == "AC"):
         time_correction:int = 5
@@ -505,10 +523,8 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
         time_correction = 3
 
     #print([(key, np.round(np.sum(preZ[key])/1000,2)) for key in sorted(list(preZ.keys()))])
-    Z:np.ndarray = np.concatenate([preZ[key] for key in [2020,2021,2022,2023]])/1000
+    Z:np.ndarray = np.concatenate([preZ[key] for key in [2023,2024]])/1000
     Z = np.concatenate((Z[:, time_correction:], Z[:, :time_correction]), 1)
-
-    print(np.sum(Z))
 
     x:np.ndarray = np.array(list(range(1, Z.shape[0]+1)))
     y:np.ndarray = np.array(list(range(Z.shape[1])))
@@ -522,7 +538,7 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
     ax.set_xlabel('Day of the Data [Day]')
     ax.set_ylabel('Hour of the Day [Hour]')
     ax.set_zlabel('Power [MW]')
-    ax.set_title('Ventures PV Yield Across (%i:%i)\n[%s]\n\nTotal produced: %.2fTW'%(2020, 2023, states[list(state.keys())[0][:2]], np.sum(Z)/10**6))
+    ax.set_title('Ventures PV Yield Across (%i:%i)\n[%s]\n\nTotal produced: %.2fTWh'%(2023, 2024, states[list(state.keys())[0][:2]], np.sum(Z)/10**6))
     plt.tight_layout()
     #plt.show()
     plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s.png"%(Path(dirname(abspath(__file__))).parent, states[list(state.keys())[0][:2]]), backend='Agg', dpi=200)
