@@ -9,7 +9,6 @@ from multiprocessing import Pool
 from gzip import open as gzopen
 from os import makedirs
 from collections import defaultdict
-from mpl_toolkits.mplot3d import Axes3D #type: ignore
 import pickle
 
 from usine_generation import usine_plot, usines_pv_mmd_generation
@@ -156,28 +155,33 @@ def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray
     with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
         lines:list[str] = f.readlines()[9:-12]
     
+    
     min_year:int = min([int(year_power_qty_array[0,0]), 2020])
-    timeseries_array:np.ndarray = np.asarray([
-        [
-            line.split(',')[0].replace(':', ''), #YYYYMMDDhhmm
-            sum([float(v) for v in line.split(',')[1:4]]), #summed G's
-            line.split(',')[5] #T2m
-        ]
-        for line in lines if int(line[:4]) >= min_year], np.float64)
+    timeseries_array:np.ndarray = np.zeros((sum([366 if i%4==0 else 365 for i in range(min_year, 2024)])*24, 3), np.float64)
+    i0:int = sum([366 if i%4==0 else 365 for i in range(2005, min_year)])*24
+    j:int = 0
+    for line in lines[i0:]:
+        spline:list[str] = line.split(',', 6)[:-1]
+        timeseries_array[j, 0] = spline[0].replace(':', '')
+        timeseries_array[j, 1] = sum([float(v) for v in spline[1:4]])
+        timeseries_array[j, 2] = spline[5]
+        j += 1
 
+    
     arr2024:np.ndarray = np.zeros((366*24, 3))
+
     arr2024[:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 1:]
     for i in [2021, 2022, 2023]:
         arr2024[:59*24, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][:59*24, 1:]
         arr2024[60*24:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:, 1:]
         arr2024[59*24:60*24, 1:] += (timeseries_array[timeseries_array[:, 0]//(10**8) == i][58*24:59*24, 1:]+timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:60*24, 1:])/2
-    
-    arr2024[:, 0] = timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 0]%(10**8)
-    arr2024[:, 0] += 2024*(10**8)
-
     arr2024[:, 1:] /= 4
 
+    arr2024[:, 0] = timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 0]%(10**8)
+    arr2024[:, 0] += 2024*(10**8)
+    
     timeseries_array = np.concatenate((timeseries_array, arr2024))
+
 
     def t_correction(g:np.ndarray, t2m:np.ndarray) -> np.ndarray:
         #Tc:np.ndarray = (t2m+g*25/800)
@@ -187,7 +191,7 @@ def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray
         return (1-0.0045*(np.maximum((t2m+g*25/800), 25)-25))
     
     Z0:dict[int, np.ndarray] = {}
-    current_power:float = 0
+    current_power:float = 0.
     for year in range(min_year, int(timeseries_array[-1, 0]//(10**8))+1):
         current_power = current_power*0.995 + (year_power_qty_array[year_power_qty_array[:, 0]==year][0, 1]*1000*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==year].size>0) else 0)
         
@@ -198,12 +202,7 @@ def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray
     return Z0 
 
 def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = False) -> None:
-    """ all_coords_dict:dict[str, np.ndarray] = {}
-    [all_coords_dict.update([(key, coords_dict[key][coords_dict[key][:,0].argsort()]) for key in coords_dict.keys()]) for coords_dict in state.values()]
-    print(type(list(all_coords_dict.items())[0][1][0,0]), list(all_coords_dict.items())[0][1][0,0])
-    print(*[(coord, array[0,0], array[-1,0], array[:, 1])for coord, array in sorted(list(all_coords_dict.items()), key=lambda e: e[1][0,0])[:30]], sep='\n')
-    preZ = coord_process_monolith(states[list(state.keys())[0][:2]], '(-21.210883,-47.794643)', all_coords_dict['(-21.210883,-47.794643)'])
-    #print(coord_process_monolith(states[list(state.keys())[0][:2]], '(-21.210883,-47.794643)', all_coords_dict['(-21.210883,-47.794643)'])) """
+    state_abbreviation:str = states[list(state.keys())[0][:2]]
 
     preZ:dict[int, np.ndarray]
     if (not(isfile('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent)))):
@@ -212,7 +211,7 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
             if monolith:
                 all_coords_dict:dict[str, np.ndarray] = {key:coords_dict[key][coords_dict[key][:,0].argsort()] for coords_dict in state.values() for key in coords_dict.keys()}
                 
-                Z0s:list[dict[int, np.ndarray]] = p.starmap(coord_process_monolith, [(states[list(state.keys())[0][:2]], coord, year_power_qty_array) for coord, year_power_qty_array in all_coords_dict.items()])
+                Z0s:list[dict[int, np.ndarray]] = p.starmap(coord_process_monolith, [(state_abbreviation, coord, year_power_qty_array) for coord, year_power_qty_array in all_coords_dict.items()])
                 
                 for Z0 in Z0s:
                     for year, array in Z0.items():
@@ -235,10 +234,10 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
         with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'rb', 50*(1024**2)) as fin:
             preZ = pickle.load(fin)
 
-    all_coords_dict = {coord:coords_dict[coord][coords_dict[coord][:,0].argsort()] for coords_dict in state.values() for coord in coords_dict.keys()}
-    print(*['%4i, %5.2fMW, %5.2fMWh'%(key, sum([np.sum(array[array[:, 0]<=key][:, 1]) for array in all_coords_dict.values()])/(10**3), np.sum(preZ[key])/(10**6)) for key in sorted(preZ.keys())], sep='\n')
+    #all_coords_dict = {coord:coords_dict[coord][coords_dict[coord][:,0].argsort()] for coords_dict in state.values() for coord in coords_dict.keys()}
+    #print(*['%4i, %5.2fMW, %5.2fMWh'%(key, sum([np.sum(array[array[:, 0]<=key][:, 1]) for array in all_coords_dict.values()])/(10**3), np.sum(preZ[key])/(10**6)) for key in sorted(preZ.keys())], sep='\n')
     
-    state_abbreviation:str = states[list(state.keys())[0][:2]]
+    
     if (state_abbreviation == 'AC'):
         time_correction:int = 5
     elif (state_abbreviation == 'AM'):
@@ -253,6 +252,7 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
     Z = np.concatenate((Z[:, time_correction:], Z[:, :time_correction]), 1)
 
     import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D #type: ignore
     from matplotlib import use
     #use("Agg")
 
