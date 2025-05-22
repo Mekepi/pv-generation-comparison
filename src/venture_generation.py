@@ -82,8 +82,8 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
 
         with open("%s\\failty_coord.csv"%(data_folder), 'w', encoding='utf-8') as f:
             f.close()
-
-        for state in listdir(ventures_folder)[1:]:
+        
+        for state in states.values():
 
             if ((sts and not(state[:2] in sts)) or (geocodes and not(state[:2] in [states[s[:2]] for s in geocodes]))):
                 continue
@@ -107,3 +107,19 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
         pickle.dump(states_irradiance, fout)
     
     return states_irradiance
+
+def save_ventures_timeseries_coords_filtered(states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]], monolith:bool=False) -> None:
+    '''
+    If monolith is activeded, it creates a monolith coordinates file instead of separating them into per city files.
+    '''
+    for state, cities in states_cities_coords_array.items():
+        makedirs('%s\\data\\timeseries_coords_filtered\\%s'%(Path(dirname(abspath(__file__))).parent, state), exist_ok=True)
+        
+        if monolith:
+            with open('%s\\data\\timeseries_coords_filtered\\%s\\%s_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, state), 'w', 1024**2, 'utf-8') as fout:
+                for geocode, coords in cities.items():
+                    fout.writelines(['%s,%s\n'%(coord[1:-1], geocode) for coord in coords.keys()])
+        else:
+            for geocode, coords in cities.items():
+                with open('%s\\data\\timeseries_coords_filtered\\%s\\[%s]_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, geocode), 'w', 1024**2, 'utf-8') as fout:
+                    fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
