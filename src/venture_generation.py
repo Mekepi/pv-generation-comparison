@@ -18,7 +18,7 @@ states:dict[str, str] = {
     "11": "RO", "14": "RR", "42": "SC", "35": "SP", "28": "SE", "17": "TO"
 }
 
-def city_process(data_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[float, list[float]]]]:
+def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[float, list[float]]]]:
 
     with open("%s\\%s\\%s"%(ventures_folder, state, city), 'r', 8*1024*1024, encoding='utf-8') as file:
         ventures:np.ndarray = np.asarray(file.readlines()[1:], str)
@@ -36,7 +36,7 @@ def city_process(data_folder:Path, ventures_folder:Path, state_timeseries_coords
     city_ventures_coords:np.ndarray = np.asarray(city_ventures_coords_list)
 
     if failty_coord:
-        with open("%s\\failty_coord.csv"%(data_folder), 'a', encoding='utf-8') as f:
+        with open("%s\\failty_coord.csv"%(main_folder), 'a', encoding='utf-8') as f:
             f.writelines(failty_coord)
 
     distances:list[float]
@@ -46,8 +46,8 @@ def city_process(data_folder:Path, ventures_folder:Path, state_timeseries_coords
     faridxs:list[str] = ["(%7.2f,%6.2f) (%11.6f,%6.6f) %6.2f    %s"%(*city_ventures_coords[:, :2][i],*city_timeseries_coords[idxs[i]],distances[i],ventures[i]) for i in range(len(distances)) if distances[i]>=0.03]
     
     if faridxs:
-        makedirs("%s\\outputs\\Too Far Coords\\%s"%(data_folder, state), exist_ok=True)
-        with open("%s\\outputs\\Too Far Coords\\%s\\%s-too-far.csv"%(data_folder, state, city[:9]), 'w', 1024*1024*256, encoding='utf-8') as f:
+        makedirs("%s\\outputs\\Too Far Coords\\%s"%(main_folder, state), exist_ok=True)
+        with open("%s\\outputs\\Too Far Coords\\%s\\%s-too-far.csv"%(main_folder, state, city[:9]), 'w', 1024*1024*256, encoding='utf-8') as f:
             f.write("source coord;closest timeseries coord;distance;line\n")
             f.writelines(faridxs)
     
@@ -70,17 +70,17 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
         with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'rb', 32*1024*1024) as fin:
             return pickle.load(fin)
 
-    data_folder:Path = Path(dirname(abspath(__file__))).parent
+    main_folder:Path = Path(dirname(abspath(__file__))).parent
 
-    ventures_folder:Path = Path('%s\\data\\ventures'%(data_folder))
+    ventures_folder:Path = Path('%s\\data\\ventures'%(main_folder))
 
-    timeseries_coords_folder:Path = Path('%s\\data\\timeseries_coords'%(data_folder))
+    timeseries_coords_folder:Path = Path('%s\\data\\timeseries_coords'%(main_folder))
 
     states_irradiance:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = defaultdict(defaultdict[str, dict[str, np.ndarray]])
 
     with Pool(cpu_count()) as p:
 
-        with open("%s\\failty_coord.csv"%(data_folder), 'w', encoding='utf-8') as f:
+        with open("%s\\outputs\\failty_coord.csv"%(main_folder), 'w', encoding='utf-8') as f:
             f.close()
         
         for state in states.values():
@@ -94,7 +94,7 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
 
             cities_dicts:list[tuple[str, defaultdict]] = p.starmap(
                 city_process,
-                [(data_folder, ventures_folder, state_timeseries_coords_folder, state, city) for city in listdir('%s\\%s'%(ventures_folder, state)) if not(geocodes) or (city[1:8] in geocodes)]
+                [(main_folder, ventures_folder, state_timeseries_coords_folder, state, city) for city in listdir('%s\\%s'%(ventures_folder, state)) if not(geocodes) or (city[1:8] in geocodes)]
             )
 
             coord_year_list:defaultdict[str, defaultdict[float, list[float]]]
