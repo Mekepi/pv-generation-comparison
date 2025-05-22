@@ -11,7 +11,8 @@ from os import makedirs
 from collections import defaultdict
 import pickle
 
-from usine_generation import usine_plot, usines_pv_mmd_generation
+from usine_generation import usines_plot, usines_pv_mmd_generation
+from venture_generation import ventures_process
 
 states:dict[str, str] = {
     "12": "AC", "27": "AL", "13": "AM", "16": "AP", "29": "BA", "23": "CE", "53": "DF",
@@ -20,89 +21,7 @@ states:dict[str, str] = {
     "11": "RO", "14": "RR", "42": "SC", "35": "SP", "28": "SE", "17": "TO"
 }
 
-#ventures
-
-def city_process(data_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[float, list[float]]]]:
-
-    with open("%s\\%s\\%s"%(ventures_folder, state, city), 'r', 8*1024*1024, encoding='utf-8') as file:
-        ventures:np.ndarray = np.asarray(file.readlines()[1:], str)
-
-    city_timeseries_coords_file:Path = Path("%s\\%s"%(state_timeseries_coords_folder, next(f for f in listdir(state_timeseries_coords_folder) if f.startswith(city[:9]))))
-    city_timeseries_coords:np.ndarray = np.loadtxt(city_timeseries_coords_file, delimiter=',', ndmin=2, encoding='utf-8')
-
-    failty_coord:list[str] = []
-    city_ventures_coords_list:list[list[float]] = []
-    for i in range(len(ventures)):
-        venture_data:list[str] = ventures[i].split('";"')
-        try: city_ventures_coords_list.append([float('.'.join(venture_data[3].split(','))), float('.'.join(venture_data[2].split(','))), float(i)])
-        except Exception:
-            failty_coord.append(ventures[i])
-    city_ventures_coords:np.ndarray = np.asarray(city_ventures_coords_list)
-
-    if failty_coord:
-        with open("%s\\failty_coord.csv"%(data_folder), 'a', encoding='utf-8') as f:
-            f.writelines(failty_coord)
-
-    distances:list[float]
-    idxs:list[int]
-    distances, idxs = cKDTree(city_timeseries_coords).query(city_ventures_coords[:, :2], 1, workers=-1) # type: ignore
-
-    faridxs:list[str] = ["(%7.2f,%6.2f) (%11.6f,%6.6f) %6.2f    %s"%(*city_ventures_coords[:, :2][i],*city_timeseries_coords[idxs[i]],distances[i],ventures[i]) for i in range(len(distances)) if distances[i]>=0.03]
-    
-    if faridxs:
-        makedirs("%s\\outputs\\Too Far Coords\\%s"%(data_folder, state), exist_ok=True)
-        with open("%s\\outputs\\Too Far Coords\\%s\\%s-too-far.csv"%(data_folder, state, city[:9]), 'w', 1024*1024*256, encoding='utf-8') as f:
-            f.write("source coord;closest timeseries coord;distance;line\n")
-            f.writelines(faridxs)
-    
-    coord_year_list:defaultdict[str, defaultdict[float, list[float]]] = defaultdict(defaultdict[float, list[float]])
-    
-    for venture, timeseries_coord in zip(ventures[city_ventures_coords[:,2].astype(int)], city_timeseries_coords[idxs]):
-        venture_data = venture.split('";"')
-        if ('(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0]) not in coord_year_list):
-            coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])] = defaultdict(list[float])
-        if (venture_data[27][:4] not in coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])]):
-            coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])] = [0., 0.]
-        coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])][0] += float('.'.join(venture_data[4].split(',')))
-        coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])][1] += 1
-    
-    return (city, coord_year_list)
-
-def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict[str, defaultdict[str, dict[str, np.ndarray]]]:
-    data_folder:Path = Path(dirname(abspath(__file__))).parent
-
-    ventures_folder:Path = Path('%s\\data\\ventures'%(data_folder))
-
-    timeseries_coords_folder:Path = Path('%s\\data\\timeseries_coords'%(data_folder))
-
-    states_irradiance:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = defaultdict(defaultdict[str, dict[str, np.ndarray]])
-
-    with Pool(cpu_count()) as p:
-
-        with open("%s\\failty_coord.csv"%(data_folder), 'w', encoding='utf-8') as f:
-            f.close()
-
-        for state in listdir(ventures_folder)[1:]:
-
-            if ((sts and not(state[:2] in sts)) or (geocodes and not(state[:2] in [states[s[:2]] for s in geocodes]))):
-                continue
-
-            state_timeseries_coords_folder:str = "%s\\%s"%(timeseries_coords_folder, next(f for f in listdir(timeseries_coords_folder) if f.startswith(state)))
-
-            states_irradiance[state[:2]] = defaultdict(dict[str, np.ndarray])
-
-            cities_dicts:list[tuple[str, defaultdict]] = p.starmap(
-                city_process,
-                [(data_folder, ventures_folder, state_timeseries_coords_folder, state, city) for city in listdir('%s\\%s'%(ventures_folder, state)) if not(geocodes) or (city[1:8] in geocodes)]
-            )
-
-            coord_year_list:defaultdict[str, defaultdict[float, list[float]]]
-            for city, coord_year_list in cities_dicts:
-                states_irradiance[state[:2]][city[1:8]] = {coord:np.asarray([[year, power_qtd[0], power_qtd[1]] for year, power_qtd in year_list.items()]) for coord, year_list in coord_year_list.items()}
-
-            print('%s processed'%(state[:2]))
-
-    return states_irradiance
+#get and plot ventures generation
 
 def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
     timeseries_path:Path =  Path(dirname(abspath(__file__))).parent.joinpath('data\\timeseries\\%s\\[%s]\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, geocode, coord))
@@ -247,8 +166,9 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
     else:
         time_correction = 3
 
-    #print([(key, np.round(np.sum(preZ[key])/1000,2)) for key in sorted(list(preZ.keys()))])
-    Z:np.ndarray = np.concatenate([preZ[key] for key in [2023,2024]])/(10**6)
+    #print([(key, np.round(np.sum(preZ[key])/(10**6),2)) for key in sorted(list(preZ.keys()))]) #(year, installed power [MW])
+    period:tuple[int, int] = (2016, 2018)
+    Z:np.ndarray = np.concatenate([preZ[key] for key in range(period[0], period[1]+1)])/(10**6)
     Z = np.concatenate((Z[:, time_correction:], Z[:, :time_correction]), 1)
 
     import matplotlib.pyplot as plt
@@ -256,8 +176,8 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
     from matplotlib import use
     #use("Agg")
 
-    x:np.ndarray = np.array(list(range(1, Z.shape[0]+1)))
-    y:np.ndarray = np.array(list(range(Z.shape[1])))
+    x:np.ndarray = np.arange(1, Z.shape[0]+1)
+    y:np.ndarray = np.arange(Z.shape[1])
 
     Y, X = np.meshgrid(y, x)
 
@@ -268,10 +188,10 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
     ax.set_xlabel('Day of the Data [Day]')
     ax.set_ylabel('Hour of the Day [Hour]')
     ax.set_zlabel('Power [MW]')
-    ax.set_title('Ventures PV Yield Across (%i:%i)\n[%s]\n\nTotal produced: %.2fTWh'%(2023, 2024, states[list(state.keys())[0][:2]], np.sum(Z)/10**6))
+    ax.set_title('Ventures PV Yield Across (%i:%i)\n[%s]\n\nTotal produced: %.2fTWh'%(*period, state_abbreviation, np.sum(Z)/10**6))
     plt.tight_layout()
     #plt.show()
-    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s.png"%(Path(dirname(abspath(__file__))).parent, states[list(state.keys())[0][:2]]), backend='Agg', dpi=200)
+    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s (%i, %i).png"%(Path(dirname(abspath(__file__))).parent, state_abbreviation, *period), backend='Agg', dpi=200)
     plt.close()
 
 def save_timeseries_coords_filtered(states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]], monolith:bool=False) -> None:
@@ -289,29 +209,17 @@ def save_timeseries_coords_filtered(states_cities_coords_array:defaultdict[str, 
 
 def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
 
-    #Ventures
-
+    #Ventures build
     t0:float = perf_counter()
-    if (not(isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl')))):
-        states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = ventures_process()
-        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'wb', 20*1024*1024) as fout:
-            pickle.dump(states_cities_coords_array, fout)
-    else:
-        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'rb', 20*1024*1024) as fin:
-            states_cities_coords_array = pickle.load(fin)
+    states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = ventures_process()
     print('Ventures process execution time:', perf_counter()-t0)
 
+    #Save filtered coords
     """ t0 = perf_counter()
     save_timeseries_coords_filtered(states_cities_coords_array, True)
     print('Save filtered timeseries coords time:', perf_counter()-t0) """
 
-    #print(states_cities_coords_array.keys())
-    #print(states_cities_coords_array['SP'].keys())
-    #print(sorted([(coord, array[0,0], array[0, 1]) for coord, array in  states_cities_coords_array['SP']['3550308'].items()], key=lambda e: e[1]))
-    #print(list(states_cities_coords_array['SP']['3550308'].keys())[0])
-
     #Ventures coordinates data volume analysis
-
     """ total:int = 0
     for state, cities in states_cities_coords_array.items():
         subtotal:int = sum([len(city.keys()) for city in cities.values()])
@@ -320,28 +228,22 @@ def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
     print('Total space required: %i timeseries (%.2f GiB after compression)'%(total, 1650*total/(1024**2)))
     print('Total minimum expected download time: Uncompressed %.2f TiB -> %.1fh'%(7.65*total/(1024**2), 0.42981*total/(60**2))) """
 
-    #Ventures plot
 
+    #Ventures plot // depends on having timeseries
     t0 = perf_counter()
     plot_generation(states_cities_coords_array['SP'], True)
     print('Ventures generetaion plot execution time:', perf_counter()-t0)
 
-    #Usines
 
+    #Usines build
     t0 = perf_counter()
-    if (not(isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl')))):
-        per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
-        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl'), 'wb', 6*1024*1024) as fout:
-            pickle.dump(per_state_usines_pv_mmd_generation, fout)
-    else:
-        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl'), 'rb', 6*1024*1024) as fin:
-            per_state_usines_pv_mmd_generation = pickle.load(fin)
-    print('Usines process execution time:', perf_counter()-t0)
+    per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
+    print('\nUsines process execution time:', perf_counter()-t0)
 
-    #print(*["(%s, %s)\n"%(state, str(array.shape)) for state, array in per_state_usines_pv_mmd_generation.items()])
-    usine_plot('SP', per_state_usines_pv_mmd_generation['SP'])
-
-    #continuar
+    #Usines plot
+    t0 = perf_counter()
+    usines_plot(list(per_state_usines_pv_mmd_generation.items()))
+    print('Usines generation plot execution time:', perf_counter()-t0)
 
 if __name__ == "__main__":
     main()
