@@ -1,9 +1,7 @@
 import numpy as np
 from time import perf_counter
-from os import listdir
 from os.path import dirname, abspath, isfile
 from pathlib import Path
-from scipy.spatial import cKDTree
 from psutil import cpu_count
 from multiprocessing import Pool
 from gzip import open as gzopen
