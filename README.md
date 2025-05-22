@@ -1,5 +1,5 @@
 # MMD PV Generation Comparison
-(ANS Estimates and ANEEL Ventures data)
+(ONS Estimates and ANEEL Ventures data)
 
 Preview:
 
@@ -8,6 +8,6 @@ Preview:
   <img src="sample-usines-SP.png" width="45%" alt="ANS Estimates for SP">
 </div
 
-*[Hourly solar radiation vs. generation capacity  (Sample photovoltaic venture (São Paulo, Brazil)) | ANS Estimates for SP]*  
+*[Hourly solar radiation vs. generation capacity  (Sample photovoltaic venture (São Paulo, Brazil)) | ONS Estimates for SP]*  
 
 ---
