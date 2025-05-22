@@ -199,7 +199,7 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
     plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s (%i, %i).png"%(Path(dirname(abspath(__file__))).parent, state_abbreviation, *period), backend='Agg', dpi=200)
     plt.close()
 
-def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
+def main() -> None:
 
     #Ventures build
     t0:float = perf_counter()
@@ -239,7 +239,6 @@ def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
 
 if __name__ == "__main__":
     main()
-    #usine_generation('SP')
 
 # (0, '"CodEmpreendimento') (1, 'CodMunicipioIbge') (2, 'NumCoordNEmpreendimento') (3, 'NumCoordEEmpreendimento')
 # (4, 'MdaPotenciaInstaladaKW') (5, 'MdaAreaArranjo') (6, 'QtdModulos') (7, 'MdaPotenciaModulos') (8, 'NomModeloModulo')
