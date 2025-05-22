@@ -8,9 +8,8 @@ data/*
 outputs/*
 !outputs/plot/.gitkeep
 
-Too Far Coords
-
 # mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
+src/__pycache__
