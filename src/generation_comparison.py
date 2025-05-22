@@ -26,41 +26,48 @@ def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> di
     with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
         lines:list[str] = f.readlines()[9:-12]
 
-    lines_array:np.ndarray = np.asarray([
-        [
-            int(''.join(line.split(',')[0].split(':'))),
-            sum([float(v) for v in line.split(',')[1:4]]),
-            float(line.split(',')[5])
-        ]
-        for line in lines if int(line[:4]) >= int(year_power_qty_array[0,0])])
-
-    current_year:int = int(year_power_qty_array[0,0])
-    current_power:float = year_power_qty_array[0,1]*0.95*0.97*0.98
+    min_year:int = min([int(year_power_qty_array[0,0]), 2020])
+    timeseries_array:np.ndarray = np.zeros((sum([366 if i%4==0 else 365 for i in range(min_year, 2024)])*24, 3), np.float64)
+    i0:int = sum([366 if i%4==0 else 365 for i in range(2005, min_year)])*24
     j:int = 0
+    for line in lines[i0:]:
+        spline:list[str] = line.split(',', 6)[:-1]
+        timeseries_array[j, 0] = spline[0].replace(':', '')
+        timeseries_array[j, 1] = sum([float(v) for v in spline[1:4]])
+        timeseries_array[j, 2] = spline[5]
+        j += 1
 
-    def t_correction(g:float, t2m:float) -> float:
-        Tc:float = (t2m+g*25/800)
-        Tc = Tc if Tc>25 else 25
+    
+    arr2024:np.ndarray = np.zeros((366*24, 3))
+
+    arr2024[:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 1:]
+    for i in [2021, 2022, 2023]:
+        arr2024[:59*24, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][:59*24, 1:]
+        arr2024[60*24:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:, 1:]
+        arr2024[59*24:60*24, 1:] += (timeseries_array[timeseries_array[:, 0]//(10**8) == i][58*24:59*24, 1:]+timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:60*24, 1:])/2
+    arr2024[:, 1:] /= 4
+
+    arr2024[:, 0] = timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 0]%(10**8)
+    arr2024[:, 0] += 2024*(10**8)
+    
+    timeseries_array = np.concatenate((timeseries_array, arr2024))
+
+
+    def t_correction(g:np.ndarray, t2m:np.ndarray) -> np.ndarray:
+        #Tc:np.ndarray = (t2m+g*25/800)
+        #Tc[Tc<25] = 25
         
-        return (1 - 0.0045*(Tc-25))
+        #return (1-0.0045*(Tc-25))
+        return (1-0.0045*(np.maximum((t2m+g*25/800), 25)-25))
     
     Z0:dict[int, np.ndarray] = {}
-    for i in range(0, lines_array.shape[0], 24):
-        if (lines_array[i, 0]//(10**8) > current_year):
-            current_year = lines_array[i, 0]//(10**8)
-            current_power = current_power*0.995 + year_power_qty_array[year_power_qty_array[:, 0]==current_year][0, 1]*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==current_year].size>0) else 0
-            j = 0
+    current_power:float = 0.
+    for year in range(min_year, int(timeseries_array[-1, 0]//(10**8))+1):
+        current_power = current_power*0.995 + (year_power_qty_array[year_power_qty_array[:, 0]==year][0, 1]*1000*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==year].size>0) else 0)
         
-        if (current_year not in Z0):
-            Z0[current_year] = np.zeros((366 if current_year%4==0 else 365, 24))
-
-        day_irradiation_temperature:np.ndarray = lines_array[i:i+24, 1:]
-
-        try: Z0[current_year][j] += (day_irradiation_temperature[:, 0]*current_power/1000)*np.vectorize(t_correction)(day_irradiation_temperature[:,0], day_irradiation_temperature[:,1])
-        except Exception as e:
-            print(j, current_year, 'bissexto' if current_year%4==0 else 'normal', Z0[current_year].shape, lines_array[i])
-            raise e
-        j += 1
+        year_mask:np.ndarray = timeseries_array[:, 0]//(10**8) == year
+        
+        Z0[year] = (timeseries_array[year_mask, 1]*current_power*t_correction(timeseries_array[year_mask, 1], timeseries_array[year_mask, 2])/1000).reshape((366 if year%4==0 else 365, 24))
     
     return Z0 
 
