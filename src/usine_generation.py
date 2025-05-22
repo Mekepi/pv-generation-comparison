@@ -12,11 +12,17 @@ states:dict[str, str] = {
     "11": "RO", "14": "RR", "42": "SC", "35": "SP", "28": "SE", "17": "TO"
 }
 
-def usine_plot(state:str, Z:np.ndarray) -> None:
+def usine_plot(state:str, Z0:np.ndarray) -> None:
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D #type: ignore
     from matplotlib import use
     use("Agg")
+
+    period:tuple[int, int] = (20240101, 20241231)
+
+    i0:int = np.argwhere(Z0[:,0,0] == period[0])[0, 0]
+    i:int = np.argwhere(Z0[:,0,0] == period[1])[0, 0]
+    Z:np.ndarray = Z0[i0:i+1]
 
     x:np.ndarray = np.arange(1, Z.shape[0]+1)
     y:np.ndarray = np.arange(Z.shape[1])
@@ -33,7 +39,7 @@ def usine_plot(state:str, Z:np.ndarray) -> None:
     ax.set_title("Usines Generation Across (%02i/%i:%02i/%i)\n[%s]\n\nTotal produced: %.2f TWh"%(Z[0,0,0]%10000//100, Z[0,0,0]//10000, Z[-1,0,0]%10000//100, Z[-1,0,0]//10000, state, np.sum(Z[:,:,1])/(10**12)))
     plt.tight_layout()
     #plt.show()
-    plt.savefig("%s\\outputs\\Usines MMD PV Generation\\usines-%s.png"%(Path(dirname(abspath(__file__))).parent, state), backend='Agg', dpi=200)
+    plt.savefig("%s\\outputs\\Usines MMD PV Generation\\usines-%s-(%02i_%4i;%02i_%4i).png"%(Path(dirname(abspath(__file__))).parent, state, Z[0,0,0]%10000//100, Z[0,0,0]//10000, Z[-1,0,0]%10000//100, Z[-1,0,0]//10000), backend='Agg', dpi=200)
     plt.close()
 
 def usines_plot(state_Z_list:list[tuple[str, np.ndarray]]) -> None:
