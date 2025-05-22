@@ -10,7 +10,7 @@ from collections import defaultdict
 import pickle
 
 from usine_generation import usines_plot, usines_pv_mmd_generation
-from venture_generation import ventures_process
+from venture_generation import ventures_process, save_ventures_timeseries_coords_filtered
 
 states:dict[str, str] = {
     "12": "AC", "27": "AL", "13": "AM", "16": "AP", "29": "BA", "23": "CE", "53": "DF",
@@ -199,19 +199,6 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
     plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s (%i, %i).png"%(Path(dirname(abspath(__file__))).parent, state_abbreviation, *period), backend='Agg', dpi=200)
     plt.close()
 
-def save_timeseries_coords_filtered(states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]], monolith:bool=False) -> None:
-    for state, cities in states_cities_coords_array.items():
-        makedirs('%s\\data\\timeseries_coords_filtered\\%s'%(Path(dirname(abspath(__file__))).parent, state), exist_ok=True)
-        
-        if monolith:
-            with open('%s\\data\\timeseries_coords_filtered\\%s\\%s_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, state), 'w', 1024**2, 'utf-8') as fout:
-                for coords in cities.values():
-                    fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
-        else:
-            for geocode, coords in cities.items():
-                with open('%s\\data\\timeseries_coords_filtered\\%s\\[%s]_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, geocode), 'w', 1024**2, 'utf-8') as fout:
-                    fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
-
 def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
 
     #Ventures build
@@ -221,10 +208,10 @@ def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
 
     #Save filtered coords
     """ t0 = perf_counter()
-    save_timeseries_coords_filtered(states_cities_coords_array, True)
+    save_ventures_timeseries_coords_filtered(states_cities_coords_array, True)
     print('Save filtered timeseries coords time:', perf_counter()-t0) """
 
-    #Ventures coordinates data volume analysis
+    #Ventures timeseries data volume analysis
     """ total:int = 0
     for state, cities in states_cities_coords_array.items():
         subtotal:int = sum([len(city.keys()) for city in cities.values()])
@@ -241,14 +228,14 @@ def main(sts:list[str] = [], geocodes:list[str] = []) -> None:
 
 
     #Usines build
-    t0 = perf_counter()
+    """ t0 = perf_counter()
     per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
-    print('\nUsines process execution time:', perf_counter()-t0)
+    print('\nUsines process execution time:', perf_counter()-t0) """
 
     #Usines plot
-    t0 = perf_counter()
-    usines_plot(list(per_state_usines_pv_mmd_generation.items()))
-    print('Usines generation plot execution time:', perf_counter()-t0)
+    """ t0 = perf_counter()
+    usines_plot([('SP', per_state_usines_pv_mmd_generation['SP'])])
+    print('Usines generation plot execution time:', perf_counter()-t0) """
 
 if __name__ == "__main__":
     main()
