@@ -12,34 +12,43 @@ states:dict[str, str] = {
     "11": "RO", "14": "RR", "42": "SC", "35": "SP", "28": "SE", "17": "TO"
 }
 
-def usine_plot(state:str, Z0:np.ndarray) -> None:
+def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D #type: ignore
     from matplotlib import use
     use("Agg")
 
-    period:tuple[int, int] = (20240101, 20241231)
+    if period == (0,0):
+        period = (Z0[0, 0, 0], Z0[-1, 0, 0])
 
     i0:int = np.argwhere(Z0[:,0,0] == period[0])[0, 0]
     i:int = np.argwhere(Z0[:,0,0] == period[1])[0, 0]
     Z:np.ndarray = Z0[i0:i+1]
+    Z[:, :, 1] = Z[:, :, 1]/(10**6)
+
+    print('usines:', period, Z[[0,-1], 0,  0])
 
     x:np.ndarray = np.arange(1, Z.shape[0]+1)
     y:np.ndarray = np.arange(Z.shape[1])
 
     Y, X = np.meshgrid(y, x)
 
+    Z_max_Y:np.ndarray = np.max(Z[:, :, 1], axis=1)
+    from scipy.ndimage import gaussian_filter1d
+    smoothed_Z_max_Y = gaussian_filter1d(Z_max_Y, sigma=10)
+
     ax:Axes3D = plt.axes(projection='3d')
 
-    ax.plot_surface(X, Y, Z[:,:,1]/(10**6), cmap='viridis')
+    ax.plot_surface(X, Y, Z[:,:,1], cmap='viridis')
+    ax.plot(x, [y.max()]*len(x), smoothed_Z_max_Y, color='#440154', linewidth=2, label='Smoothed Z Max over X')
     ax.view_init(20, -50, 0)
     ax.set_xlabel('Day of the Data [Day]')
     ax.set_ylabel('Hour of the Day [Hour]')
     ax.set_zlabel('Power [MW]')
-    ax.set_title("Usines Generation Across (%02i/%i:%02i/%i)\n[%s]\n\nTotal produced: %.2f TWh"%(Z[0,0,0]%10000//100, Z[0,0,0]//10000, Z[-1,0,0]%10000//100, Z[-1,0,0]//10000, state, np.sum(Z[:,:,1])/(10**12)))
+    ax.set_title("Usines Generation Across (%02i/%i:%02i/%i)\n[%s]\n\nTotal produced: %.2f TWh"%(period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000, state, np.sum(Z[:,:,1])/(10**6)))
     plt.tight_layout()
     #plt.show()
-    plt.savefig("%s\\outputs\\Usines MMD PV Generation\\usines-%s-(%02i_%4i;%02i_%4i).png"%(Path(dirname(abspath(__file__))).parent, state, Z[0,0,0]%10000//100, Z[0,0,0]//10000, Z[-1,0,0]%10000//100, Z[-1,0,0]//10000), backend='Agg', dpi=200)
+    plt.savefig("%s\\outputs\\Usines MMD PV Generation\\usines-%s-(%02i_%4i, %02i_%4i).png"%(Path(dirname(abspath(__file__))).parent, state, period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000), backend='Agg', dpi=200)
     plt.close()
 
 def usines_plot(state_Z_list:list[tuple[str, np.ndarray]]) -> None:
