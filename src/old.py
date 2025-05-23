@@ -233,3 +233,56 @@ def curves_gen(venture_data:list[str], venture_coord:list[float], timeseries_coo
                       'Last Year Min Month (%s, %s)'%(months[ploting_i], lines[-1][:4])][i]
         
         average_day_radiation_plot(ploting, venture_coord, venture_data, city_plot_folder, header)
+
+def test() -> None:
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D #type: ignore
+
+    # Your provided Z data
+    Z = np.array([
+        [0., 0., 0., 0., 0., 0., 0., 108.2, 503.42, 862.65, 1156.34, 1304.86, 1352.24, 1308.72, 1179.14, 926.98, 585.66, 191.23, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 116.04, 562.57, 943.5, 1223.36, 1387.28, 1420.35, 1399.29, 1249., 993.64, 635.43, 211.2, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 113.93, 531.67, 938.58, 1241.44, 1400.1, 1426.69, 1403.25, 1258.11, 1002.31, 636., 208.83, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 111.56, 554.31, 948.46, 1248.42, 1421.42, 1460.77, 1402.94, 1244.68, 961.67, 557.04, 168.41, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 98.38, 482.29, 837.29, 1181.15, 1390.01, 1480.61, 1433.15, 1272.65, 1000.85, 623.35, 182.98, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 98.43, 517.34, 905.3, 1230.08, 1434.32, 1502.62, 1451.97, 1282.69, 992.6, 596.84, 164.52, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 112.12, 562.76, 952.21, 1237.98, 1412.98, 1478.82, 1428.55, 1260.12, 976.4, 587.78, 173.85, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 87.19, 488.17, 826.66, 1116.32, 1317.97, 1414.18, 1370.96, 1177.92, 869.71, 505.41, 118.54, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 91.94, 492.85, 867.16, 1155.26, 1339.88, 1399.82, 1338.06, 1143.03, 843.38, 502.07, 133.53, 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 99.31, 535.55, 918.6, 1212.96, 1382.77, 1417.41, 1352.42, 1188.57, 900.59, 530.21, 137.92, 0., 0., 0., 0., 0., 0.]
+    ])
+
+    # Create grid
+    x = np.arange(1, Z.shape[0]+1)  # X-axis indices (0-23)
+    y = np.arange(Z.shape[1])  # Y-axis indices (0-9)
+    Y, X = np.meshgrid(y, x)
+
+    # Compute max projections
+    Z_max_X = np.max(Z, axis=0)  # Max over Y for each X
+    Z_max_Y = np.max(Z, axis=1)  # Max over X for each Y
+
+    # Smooth with moving average (window size 3)
+    """ window_size = 3
+    smooth_kernel = np.ones(window_size) / window_size
+    smoothed_Z_max_X = np.convolve(Z_max_X, smooth_kernel, mode='same')
+    smoothed_Z_max_Y = np.convolve(Z_max_Y, smooth_kernel, mode='same') """
+
+    # For better smoothing (uncomment if you have SciPy):
+    from scipy.signal import savgol_filter
+    smoothed_Z_max_X = savgol_filter(Z_max_X, window_length=5, polyorder=2)
+    smoothed_Z_max_Y = savgol_filter(Z_max_Y, window_length=3, polyorder=2)
+
+    # Create plot
+    fig = plt.figure()
+    ax:Axes3D = fig.add_subplot(111, projection='3d')
+    ax.plot_surface(X, Y, Z, cmap='viridis', alpha=0.5)
+
+    # Plot smoothed max projections
+    #ax.plot([x.max()]*len(y), y, smoothed_Z_max_X, color='lime', linewidth=2, label='Smoothed Z Max over Y')
+    ax.plot(x, [y.max()]*len(x), smoothed_Z_max_Y, color='navy', linewidth=2, label='Smoothed Z Max over X')
+
+    ax.legend()
+    plt.show()
+
+test()
