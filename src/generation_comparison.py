@@ -9,7 +9,7 @@ from os import makedirs
 from collections import defaultdict
 import pickle
 
-from usine_generation import usines_plot, usines_pv_mmd_generation
+from usine_generation import usine_plot, usines_plot, usines_pv_mmd_generation
 from venture_generation import ventures_process, save_ventures_timeseries_coords_filtered
 
 states:dict[str, str] = {
@@ -21,12 +21,12 @@ states:dict[str, str] = {
 
 #get and plot ventures generation
 
-def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
+def coord_process(geocode:str, coord:str, date_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
     timeseries_path:Path =  Path(dirname(abspath(__file__))).parent.joinpath('data\\timeseries\\%s\\[%s]\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, geocode, coord))
     with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
         lines:list[str] = f.readlines()[9:-12]
 
-    min_year:int = min([int(year_power_qty_array[0,0]), 2020])
+    min_year:int = min([int(date_power_qty_array[0,0]), 2020])
     timeseries_array:np.ndarray = np.zeros((sum([366 if i%4==0 else 365 for i in range(min_year, 2024)])*24, 3), np.float64)
     i0:int = sum([366 if i%4==0 else 365 for i in range(2005, min_year)])*24
     j:int = 0
@@ -63,7 +63,7 @@ def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> di
     Z0:dict[int, np.ndarray] = {}
     current_power:float = 0.
     for year in range(min_year, int(timeseries_array[-1, 0]//(10**8))+1):
-        current_power = current_power*0.995 + (year_power_qty_array[year_power_qty_array[:, 0]==year][0, 1]*1000*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==year].size>0) else 0)
+        current_power = current_power*0.995 + (date_power_qty_array[date_power_qty_array[:, 0]==year][0, 1]*1000*0.95*0.97*0.98 if (date_power_qty_array[date_power_qty_array[:, 0]==year].size>0) else 0)
         
         year_mask:np.ndarray = timeseries_array[:, 0]//(10**8) == year
         
@@ -71,16 +71,16 @@ def coord_process(geocode:str, coord:str, year_power_qty_array:np.ndarray) -> di
     
     return Z0 
 
-def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
-    if (int(year_power_qty_array[0,0])>2024):
+def coord_process_monolith(geocode:str, coord:str, date_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
+    if (int(date_power_qty_array[0,0])>20241231):
         return {}
     
-    timeseries_path:Path =  Path('C:\\Programas\\timeseries\\%s\\monolith\\timeseries%s.csv.gz'%(state, coord))
+    timeseries_path:Path =  Path('C:\\Programas\\timeseries\\%s\\monolith\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, coord))
     with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
         lines:list[str] = f.readlines()[9:-12]
     
     
-    min_year:int = min([int(year_power_qty_array[0,0]), 2020])
+    min_year:int = min([int(date_power_qty_array[0,0])//10000, 2020])
     timeseries_array:np.ndarray = np.zeros((sum([366 if i%4==0 else 365 for i in range(min_year, 2024)])*24, 3), np.float64)
     i0:int = sum([366 if i%4==0 else 365 for i in range(2005, min_year)])*24
     j:int = 0
@@ -105,6 +105,24 @@ def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray
     arr2024[:, 0] += 2024*(10**8)
     
     timeseries_array = np.concatenate((timeseries_array, arr2024))
+    
+    if (states[geocode[:2]] == 'AC'):
+        time_correction:int = 5
+    elif (states[geocode[:2]] == 'AM'):
+        time_correction = 4
+    elif (geocode == '2605459'):
+        time_correction = 2
+    else:
+        time_correction = 3
+    
+    timeseries_mask_arg:int = np.argwhere(timeseries_array[:, 0]//(10**4) == date_power_qty_array[0, 0])[0, 0]
+    
+    date_irradiance_t2m_array:np.ndarray = np.concatenate([
+        timeseries_array[timeseries_mask_arg:, :1],
+        np.concatenate([timeseries_array[timeseries_mask_arg+time_correction:, 1:],
+                        timeseries_array[timeseries_mask_arg:timeseries_mask_arg+time_correction, 1:]]),
+        ], 1
+    ).reshape(timeseries_array[timeseries_mask_arg:].shape[0]//24, 24, 3)
 
 
     def t_correction(g:np.ndarray, t2m:np.ndarray) -> np.ndarray:
@@ -113,19 +131,26 @@ def coord_process_monolith(state:str, coord:str, year_power_qty_array:np.ndarray
         
         #return (1-0.0045*(Tc-25))
         return (1-0.0045*(np.maximum((t2m+g*25/800), 25)-25))
+
+    date_power_qty_array[:, 1] = (np.round(date_power_qty_array[:, 1].astype(np.float64)*0.95*0.97*0.98, 0)).astype(np.int32)
+
+    power_array:np.ndarray = np.zeros((date_irradiance_t2m_array.shape[0], 24, 1), np.float64)
+
+    for i in range(date_power_qty_array[date_power_qty_array[:, 0] < 20250101][:, 0].shape[0]):
+        j = np.argwhere(date_irradiance_t2m_array[:, 0, 0]//(10**4) == date_power_qty_array[i, 0])[0, 0]
+        power_array[j:, :] +=(date_power_qty_array[i, 1]*np.power(0.995, np.arange(power_array[j:].shape[0])/365.25))[:, np.newaxis, np.newaxis]
+        
+
+    energy_array:np.ndarray = np.concatenate([
+        date_irradiance_t2m_array[:, :, :1],
+        (date_irradiance_t2m_array[:, :, 1:2]*power_array*t_correction(date_irradiance_t2m_array[:, :, 1:2], date_irradiance_t2m_array[:, :, 2:]))/1000
+    ], 2)
     
-    Z0:dict[int, np.ndarray] = {}
-    current_power:float = 0.
-    for year in range(min_year, int(timeseries_array[-1, 0]//(10**8))+1):
-        current_power = current_power*0.995 + (year_power_qty_array[year_power_qty_array[:, 0]==year][0, 1]*1000*0.95*0.97*0.98 if (year_power_qty_array[year_power_qty_array[:, 0]==year].size>0) else 0)
-        
-        year_mask:np.ndarray = timeseries_array[:, 0]//(10**8) == year
-        
-        Z0[year] = (timeseries_array[year_mask, 1]*current_power*t_correction(timeseries_array[year_mask, 1], timeseries_array[year_mask, 2])/1000).reshape((366 if year%4==0 else 365, 24))
+    Z0:dict[int, np.ndarray] = {year:energy_array[energy_array[:, 0, 0]//(10**8) == year] for year in range(int(date_irradiance_t2m_array[0, 0, 0]//(10**8)), int(date_irradiance_t2m_array[-1, 0, 0]//(10**8))+1)}
     
     return Z0 
 
-def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = False) -> None:
+def plot_generation(state:dict[str, dict[str, np.ndarray]], period:tuple[int, int] = (0, 0), monolith:bool = False) -> None:
     state_abbreviation:str = states[list(state.keys())[0][:2]]
 
     preZ:dict[int, np.ndarray]
@@ -133,70 +158,78 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], monolith:bool = Fals
         preZ = {}
         with Pool(cpu_count()) as p:
             if monolith:
-                all_coords_dict:dict[str, np.ndarray] = {key:coords_dict[key][coords_dict[key][:,0].argsort()] for coords_dict in state.values() for key in coords_dict.keys()}
+                all_coords_dict:dict[str, tuple[str, np.ndarray]] = {key:(geocode, coords_dict[key][coords_dict[key][:,0].argsort()]) for geocode, coords_dict in state.items() for key in coords_dict.keys()}
                 
-                Z0s:list[dict[int, np.ndarray]] = p.starmap(coord_process_monolith, [(state_abbreviation, coord, year_power_qty_array) for coord, year_power_qty_array in all_coords_dict.items()])
-                
+                Z0s:list[dict[int, np.ndarray]] = p.starmap(
+                    coord_process_monolith,
+                    [(geocode__date_power_qty_array[0], coord, geocode__date_power_qty_array[1]) for coord, geocode__date_power_qty_array in all_coords_dict.items()]
+                )
+
                 for Z0 in Z0s:
                     for year, array in Z0.items():
                         if year not in preZ:
-                            preZ[year] = np.zeros_like(array)
-                        preZ[year] += array
-            else:
-                for geocode, coords_dict in state.items():
-                    Z0s = p.starmap(coord_process, [(geocode, coord, year_power_qty_array) for coord, year_power_qty_array in coords_dict.items()])
-                    
-                    for Z0 in Z0s:
-                        for year, array in Z0.items():
-                            if year not in preZ:
-                                preZ[year] = np.zeros_like(array)
-                            preZ[year] += array
+                            preZ[year] = np.zeros((366 if year%4==0 else 365, 24, 2), np.float64)
+                        preZ[year][-array.shape[0]:, :, 1] += array[:, :, 1]
+                        preZ[year][-array.shape[0]:, :, 0]  = array[:, :, 0]
 
-            with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'wb', 50*(1024**2)) as fout:
+            else:
+                    for geocode, coords_dict in state.items():
+                        Z0s = p.starmap(coord_process, [(geocode, coord, date_power_qty_array) for coord, date_power_qty_array in coords_dict.items()])
+                        
+                        for Z0 in Z0s:
+                            for year, array in Z0.items():
+                                if year not in preZ:
+                                    preZ[year] = np.zeros((366 if year%4==0 else 365, 24, 2))
+                                preZ[year][-array.shape[0]:] += array
+
+            with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'wb', 4*(1024**2)) as fout:
                 pickle.dump(preZ, fout)
     else:
-        with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'rb', 50*(1024**2)) as fin:
+        with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'rb', 4*(1024**2)) as fin:
             preZ = pickle.load(fin)
 
     #all_coords_dict = {coord:coords_dict[coord][coords_dict[coord][:,0].argsort()] for coords_dict in state.values() for coord in coords_dict.keys()}
     #print(*['%4i, %5.2fMW, %5.2fMWh'%(key, sum([np.sum(array[array[:, 0]<=key][:, 1]) for array in all_coords_dict.values()])/(10**3), np.sum(preZ[key])/(10**6)) for key in sorted(preZ.keys())], sep='\n')
-    
-    
-    if (state_abbreviation == 'AC'):
-        time_correction:int = 5
-    elif (state_abbreviation == 'AM'):
-        time_correction = 4
-    #elif (geocode == '2605459'):
-    #    time_correction = 2
-    else:
-        time_correction = 3
 
     #print([(key, np.round(np.sum(preZ[key])/(10**6),2)) for key in sorted(list(preZ.keys()))]) #(year, installed power [MW])
-    period:tuple[int, int] = (2016, 2018)
-    Z:np.ndarray = np.concatenate([preZ[key] for key in range(period[0], period[1]+1)])/(10**6)
-    Z = np.concatenate((Z[:, time_correction:], Z[:, :time_correction]), 1)
+
+    if period == (0,0):
+        period_list:list[int] = sorted(list(preZ.keys()))
+        period = (period_list[0]*(10**4)+101, period_list[-1]*(10**4)+1231)
+
+    Z:np.ndarray = np.concatenate([
+        preZ[key][period[0] <= preZ[key][:, 0, 0]//(10**4)] if key<period[1]
+        else  preZ[key][preZ[key][:, 0, 0]//(10**4) <= period[1]]
+        for key in range(period[0]//10000, period[1]//10000+1)
+    ], 0)
+    Z[:, :, 1] /=(10**6)
+
+    print('ventures:', period, Z[[0,-1], 0,  0])
 
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D #type: ignore
-    from matplotlib import use
-    #use("Agg")
 
     x:np.ndarray = np.arange(1, Z.shape[0]+1)
     y:np.ndarray = np.arange(Z.shape[1])
 
     Y, X = np.meshgrid(y, x)
 
+    Z_max_Y:np.ndarray = np.max(Z[:, :, 1], axis=1)
+    from scipy.ndimage import gaussian_filter1d
+    smoothed_Z_max_Y = gaussian_filter1d(Z_max_Y, sigma=10)
+
     ax:Axes3D = plt.axes(projection='3d')
 
-    ax.plot_surface(X, Y, Z, cmap='viridis')
+    ax.plot_surface(X, Y, Z[:, :, 1], cmap='viridis')
+    ax.plot(x, [y.max()]*len(x), smoothed_Z_max_Y, color='#440154', linewidth=2, label='Smoothed Z Max over X')
     ax.view_init(20, -50, 0)
     ax.set_xlabel('Day of the Data [Day]')
     ax.set_ylabel('Hour of the Day [Hour]')
     ax.set_zlabel('Power [MW]')
-    ax.set_title('Ventures PV Yield Across (%i:%i)\n[%s]\n\nTotal produced: %.2fTWh'%(*period, state_abbreviation, np.sum(Z)/10**6))
+    ax.set_title('Ventures PV Yield Across (%02i/%i:%02i/%i)\n[%s]\n\nTotal produced: %.2fTWh'%(period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000, state_abbreviation, np.sum(Z[:, :, 1])/10**6))
     plt.tight_layout()
     #plt.show()
-    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s (%i, %i).png"%(Path(dirname(abspath(__file__))).parent, state_abbreviation, *period), backend='Agg', dpi=200)
+    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s (%02i_%i, %02i_%i).png"%(Path(dirname(abspath(__file__))).parent, state_abbreviation, period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000), backend='Agg', dpi=200)
     plt.close()
 
 def main() -> None:
@@ -206,6 +239,13 @@ def main() -> None:
     states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = ventures_process()
     print('Ventures process execution time:', perf_counter()-t0)
 
+    #states_cities_coords_array comprehension
+    #print(states_cities_coords_array.keys())
+    #print(states_cities_coords_array['SP'].keys())
+    #print(sorted([(coord, array.shape[0])for coord, array in states_cities_coords_array['SP']['3500105'].items()], key=lambda e: e[1]))
+    #print(states_cities_coords_array['SP']['3500105']['(-21.693625,-51.070219)'])
+    #print([date for date in states_cities_coords_array['SP']['3500105']['(-21.693625,-51.070219)'][:, 0] if not(2009<=date//10000<=2025 and 1<=(date%10000)//100<=12 and 1<=date%100<=31)])
+    
     #Save filtered coords
     """ t0 = perf_counter()
     save_ventures_timeseries_coords_filtered(states_cities_coords_array, True)
@@ -220,22 +260,22 @@ def main() -> None:
     print('Total space required: %i timeseries (%.2f GiB after compression)'%(total, 1650*total/(1024**2)))
     print('Total minimum expected download time: Uncompressed %.2f TiB -> %.1fh'%(7.65*total/(1024**2), 0.42981*total/(60**2))) """
 
+    #Usines build
+    t0 = perf_counter()
+    per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
+    print('\nUsines process execution time:', perf_counter()-t0)
+
+    period:tuple[int, int] = (20230429, 20241231)
 
     #Ventures plot // depends on having timeseries
     t0 = perf_counter()
-    plot_generation(states_cities_coords_array['SP'], True)
+    plot_generation(states_cities_coords_array['SP'], period, monolith=True)
     print('Ventures generetaion plot execution time:', perf_counter()-t0)
 
-
-    #Usines build
-    """ t0 = perf_counter()
-    per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
-    print('\nUsines process execution time:', perf_counter()-t0) """
-
     #Usines plot
-    """ t0 = perf_counter()
-    usines_plot([('SP', per_state_usines_pv_mmd_generation['SP'])])
-    print('Usines generation plot execution time:', perf_counter()-t0) """
+    t0 = perf_counter()
+    usine_plot('SP', per_state_usines_pv_mmd_generation['SP'], period)
+    print('Usines generation plot execution time:', perf_counter()-t0)
 
 if __name__ == "__main__":
     main()
