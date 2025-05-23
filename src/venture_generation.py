@@ -18,10 +18,10 @@ states:dict[str, str] = {
     "11": "RO", "14": "RR", "42": "SC", "35": "SP", "28": "SE", "17": "TO"
 }
 
-def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[float, list[float]]]]:
+def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[str, list[int]]]]:
 
     with open("%s\\%s\\%s"%(ventures_folder, state, city), 'r', 8*1024*1024, encoding='utf-8') as file:
-        ventures:np.ndarray = np.asarray(file.readlines()[1:], str)
+        ventures:list[str] = file.readlines()[1:]
 
     city_timeseries_coords_file:Path = Path("%s\\%s"%(state_timeseries_coords_folder, next(f for f in listdir(state_timeseries_coords_folder) if f.startswith(city[:9]))))
     city_timeseries_coords:np.ndarray = np.loadtxt(city_timeseries_coords_file, delimiter=',', ndmin=2, encoding='utf-8')
@@ -30,13 +30,13 @@ def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords
     city_ventures_coords_list:list[list[float]] = []
     for i in range(len(ventures)):
         venture_data:list[str] = ventures[i].split('";"')
-        try: city_ventures_coords_list.append([float('.'.join(venture_data[3].split(','))), float('.'.join(venture_data[2].split(','))), float(i)])
+        try: city_ventures_coords_list.append([float(venture_data[3].replace(',', '.')), float(venture_data[2].replace(',', '.')), float(i)])
         except Exception:
             failty_coord.append(ventures[i])
     city_ventures_coords:np.ndarray = np.asarray(city_ventures_coords_list)
 
     if failty_coord:
-        with open("%s\\failty_coord.csv"%(main_folder), 'a', encoding='utf-8') as f:
+        with open("%s\\outputs\\failty_coord.csv"%(main_folder), 'a', encoding='utf-8') as f:
             f.writelines(failty_coord)
 
     distances:list[float]
@@ -51,23 +51,33 @@ def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords
             f.write("source coord;closest timeseries coord;distance;line\n")
             f.writelines(faridxs)
     
-    coord_year_list:defaultdict[str, defaultdict[float, list[float]]] = defaultdict(defaultdict[float, list[float]])
+    coord_date_list:defaultdict[str, defaultdict[str, list[int]]] = defaultdict(defaultdict[str, list[int]])
+
+    filtered_ventures:np.ndarray = np.asarray([v[1:-2].split('";"') for v in ventures])[city_ventures_coords[:,2].astype(int)]
+    filtered_ventures = np.concatenate([filtered_ventures, city_timeseries_coords[idxs]], 1)
+    filtered_ventures = filtered_ventures[filtered_ventures[:, -3].argsort()]
+    filtered_ventures[:, -3] = np.char.replace(filtered_ventures[:, -3], '-', '')
+    filtered_ventures[:,  4] = np.char.replace(filtered_ventures[:,  4], ',', '.')
     
-    for venture, timeseries_coord in zip(ventures[city_ventures_coords[:,2].astype(int)], city_timeseries_coords[idxs]):
-        venture_data = venture.split('";"')
-        if ('(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0]) not in coord_year_list):
-            coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])] = defaultdict(list[float])
-        if (venture_data[27][:4] not in coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])]):
-            coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])] = [0., 0.]
-        coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])][0] += float('.'.join(venture_data[4].split(',')))
-        coord_year_list['(%.6f,%.6f)'%(timeseries_coord[1], timeseries_coord[0])][float(venture_data[27][:4])][1] += 1
+    for i in range(filtered_ventures.shape[0]):
+        venture_data = filtered_ventures[i]
+        timeseries_coord:str ='(%.6f,%.6f)'%(float(filtered_ventures[i, -1]), float(filtered_ventures[i, -2]))
+
+        if (timeseries_coord not in coord_date_list):
+            coord_date_list[timeseries_coord] = defaultdict(list[int])
+
+        if (venture_data[27] not in coord_date_list[timeseries_coord]):
+            coord_date_list[timeseries_coord][venture_data[27]] = [0, 0]
+
+        coord_date_list[timeseries_coord][venture_data[27]][0] += int(float(venture_data[4])*1000)
+        coord_date_list[timeseries_coord][venture_data[27]][1] += 1
     
-    return (city, coord_year_list)
+    return (city, coord_date_list)
 
 def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict[str, defaultdict[str, dict[str, np.ndarray]]]:
 
     if (isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'))):
-        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'rb', 32*1024*1024) as fin:
+        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'rb', 70*1024*1024) as fin:
             return pickle.load(fin)
 
     main_folder:Path = Path(dirname(abspath(__file__))).parent
@@ -92,14 +102,13 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
 
             states_irradiance[state[:2]] = defaultdict(dict[str, np.ndarray])
 
-            cities_dicts:list[tuple[str, defaultdict]] = p.starmap(
+            cities_dicts:list[tuple[str, defaultdict[str, defaultdict[str, list[int]]]]] = p.starmap(
                 city_process,
                 [(main_folder, ventures_folder, state_timeseries_coords_folder, state, city) for city in listdir('%s\\%s'%(ventures_folder, state)) if not(geocodes) or (city[1:8] in geocodes)]
             )
-
-            coord_year_list:defaultdict[str, defaultdict[float, list[float]]]
-            for city, coord_year_list in cities_dicts:
-                states_irradiance[state[:2]][city[1:8]] = {coord:np.asarray([[year, power_qtd[0], power_qtd[1]] for year, power_qtd in year_list.items()]) for coord, year_list in coord_year_list.items()}
+            
+            for city, coord_date_list in cities_dicts:
+                states_irradiance[state[:2]][city[1:8]] = {coord:np.asarray([[date, power_qtd[0], power_qtd[1]] for date, power_qtd in year_list.items()], np.int32) for coord, year_list in coord_date_list.items()}
 
             print('%s processed'%(state[:2]))
 
