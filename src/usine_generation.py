@@ -21,8 +21,8 @@ def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     if period == (0,0):
         period = (Z0[0, 0, 0], Z0[-1, 0, 0])
 
-    i0:int = np.argwhere(Z0[:,0,0] == period[0])[0, 0]
-    i:int = np.argwhere(Z0[:,0,0] == period[1])[0, 0]
+    i0:int = np.argwhere(Z0[:,0,0] >= period[0])[0, 0]
+    i:int = np.argwhere(Z0[:,0,0] <= period[1])[-1, 0]
     Z:np.ndarray = Z0[i0:i+1]
     Z[:, :, 1] = Z[:, :, 1]/(10**6)
 
@@ -48,7 +48,7 @@ def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     ax.set_title("Usines Generation Across (%02i/%i:%02i/%i)\n[%s]\n\nTotal produced: %.2f TWh"%(period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000, state, np.sum(Z[:,:,1])/(10**6)))
     plt.tight_layout()
     #plt.show()
-    plt.savefig("%s\\outputs\\Usines MMD PV Generation\\usines-%s-(%02i_%4i, %02i_%4i).png"%(Path(dirname(abspath(__file__))).parent, state, period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000), backend='Agg', dpi=200)
+    plt.savefig("%s\\outputs\\Usines MMD PV Generation\\usines-%s-(%i_%02i, %i_%02i).png"%(Path(dirname(abspath(__file__))).parent, state, period[0]//10000, period[0]%10000//100, period[1]//10000, period[1]%10000//100), backend='Agg', dpi=200)
     plt.close()
 
 def usines_plot(state_Z_list:list[tuple[str, np.ndarray]]) -> None:
