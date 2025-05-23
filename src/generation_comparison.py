@@ -197,12 +197,12 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], period:tuple[int, in
         period_list:list[int] = sorted(list(preZ.keys()))
         period = (period_list[0]*(10**4)+101, period_list[-1]*(10**4)+1231)
 
-    Z:np.ndarray = np.concatenate([
-        preZ[key][period[0] <= preZ[key][:, 0, 0]//(10**4)] if key<period[1]
-        else  preZ[key][preZ[key][:, 0, 0]//(10**4) <= period[1]]
-        for key in range(period[0]//10000, period[1]//10000+1)
-    ], 0)
-    Z[:, :, 1] /=(10**6)
+    Zm:np.ndarray = np.concatenate([preZ[key] for key in sorted(list(preZ.keys()))])
+
+    i0:int = np.argwhere(Zm[:,0,0]//(10**4) >= period[0])[0, 0]
+    i:int = np.argwhere(Zm[:,0,0]//(10**4) <= period[1])[-1, 0]
+    Z:np.ndarray = Zm[i0:i+1]
+    Z[:, :, 1] = Z[:, :, 1]/(10**6)
 
     print('ventures:', period, Z[[0,-1], 0,  0])
 
@@ -229,7 +229,7 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], period:tuple[int, in
     ax.set_title('Ventures PV Yield Across (%02i/%i:%02i/%i)\n[%s]\n\nTotal produced: %.2fTWh'%(period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000, state_abbreviation, np.sum(Z[:, :, 1])/10**6))
     plt.tight_layout()
     #plt.show()
-    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\%s (%02i_%i, %02i_%i).png"%(Path(dirname(abspath(__file__))).parent, state_abbreviation, period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000), backend='Agg', dpi=200)
+    plt.savefig("%s\\outputs\\Ventures MMD PV Generation\\ventures-%s-(%i_%02i, %i_%02i).png"%(Path(dirname(abspath(__file__))).parent, state_abbreviation, period[0]//10000, period[0]%10000//100,  period[1]//10000, period[1]%10000//100), backend='Agg', dpi=200)
     plt.close()
 
 def main() -> None:
@@ -265,17 +265,21 @@ def main() -> None:
     per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
     print('\nUsines process execution time:', perf_counter()-t0)
 
-    period:tuple[int, int] = (20230429, 20241231)
+    #period:tuple[int, int] = (20230429, 20241231)
+    
+    for m in range(1, 13):
 
-    #Ventures plot // depends on having timeseries
-    t0 = perf_counter()
-    plot_generation(states_cities_coords_array['SP'], period, monolith=True)
-    print('Ventures generetaion plot execution time:', perf_counter()-t0)
+        period:tuple[int, int] = (20240000+m*100, 20240000+m*100+99)
 
-    #Usines plot
-    t0 = perf_counter()
-    usine_plot('SP', per_state_usines_pv_mmd_generation['SP'], period)
-    print('Usines generation plot execution time:', perf_counter()-t0)
+        #Ventures plot // depends on having timeseries
+        t0 = perf_counter()
+        plot_generation(states_cities_coords_array['SP'], period, monolith=True)
+        print('Ventures generetaion plot execution time:', perf_counter()-t0)
+
+        #Usines plot
+        t0 = perf_counter()
+        usine_plot('SP', per_state_usines_pv_mmd_generation['SP'], period)
+        print('Usines generation plot execution time:', perf_counter()-t0)
 
 if __name__ == "__main__":
     main()
