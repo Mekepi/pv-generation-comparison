@@ -72,15 +72,15 @@ def coord_process(geocode:str, coord:str, date_power_qty_array:np.ndarray) -> di
     return Z0 
 
 def coord_process_monolith(geocode:str, coord:str, date_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
-    if (int(date_power_qty_array[0,0])>20241231):
+    if (date_power_qty_array[0,0]>20241231):
         return {}
     
     timeseries_path:Path =  Path('C:\\Programas\\timeseries\\%s\\monolith\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, coord))
     with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
         lines:list[str] = f.readlines()[9:-12]
 
-    min_year:int = min([int(date_power_qty_array[0,0])//10000, 2020])
-    i0:int = sum([366 if i%4==0 else 365 for i in range(2005, min_year)])*24
+    min_year:int = min((date_power_qty_array[0,0]//10000, 2020))
+    i0:int = sum([366 if i%4==0 else 365 for i in range(int(lines[0][:4]), min_year)])*24
 
     col0:list[str] = []
     col1:list[float] = []
@@ -96,12 +96,12 @@ def coord_process_monolith(geocode:str, coord:str, date_power_qty_array:np.ndarr
     year_col:np.ndarray = timeseries_array[:, 0 ].astype(np.int64)
     val_cols:np.ndarray = timeseries_array[:, 1:].astype(np.float64)
 
-    year_fil:np.ndarray = year_col//(1_0000_0000)
+    year_filter:np.ndarray = year_col//(1_0000_0000)
     mask:list[np.ndarray] = [
-        year_fil == 2020,
-        year_fil == 2021,
-        year_fil == 2022,
-        year_fil == 2023
+        year_filter == 2020,
+        year_filter == 2021,
+        year_filter == 2022,
+        year_filter == 2023
     ]
 
     c59_24:int = 59*24
@@ -152,13 +152,12 @@ def coord_process_monolith(geocode:str, coord:str, date_power_qty_array:np.ndarr
         #return (1-0.0045*(Tc-25))
         return (1-0.0045*(np.maximum((t2m+g*25/800), 25)-25))
 
-    date_power_qty_array[:, 1] = (np.round(date_power_qty_array[:, 1].astype(np.float64)*0.95*0.97*0.98, 0)).astype(np.int32)
+    date_power_qty_array[:, 1] = (np.round(date_power_qty_array[:, 1].astype(np.float64)*0.95*0.97*0.98, 0)).astype(np.int64)
 
     power_array:np.ndarray = np.zeros((date_irradiance_t2m_array.shape[0], 24, 1), np.float64)
-
+    js:np.ndarray = np.argwhere((date_irradiance_t2m_array[:, 0, 0]//(1_0000))[:, np.newaxis] == date_power_qty_array[:, 0])[:, 0]
     for i in range(date_power_qty_array[date_power_qty_array[:, 0] < 20250101][:, 0].shape[0]):
-        j = np.argwhere(date_irradiance_t2m_array[:, 0, 0]//(10**4) == date_power_qty_array[i, 0])[0, 0]
-        power_array[j:, :] +=(date_power_qty_array[i, 1]*np.power(0.995, np.arange(power_array[j:].shape[0])/365.25))[:, np.newaxis, np.newaxis]
+        power_array[js[i]:, :] += (date_power_qty_array[i, 1]*np.power(0.995, np.arange(power_array[js[i]:].shape[0])/365.25))[:, np.newaxis, np.newaxis]
         
 
     energy_array:np.ndarray = np.concatenate([
@@ -166,7 +165,8 @@ def coord_process_monolith(geocode:str, coord:str, date_power_qty_array:np.ndarr
         (date_irradiance_t2m_array[:, :, 1:2]*power_array*t_correction(date_irradiance_t2m_array[:, :, 1:2], date_irradiance_t2m_array[:, :, 2:]))/1000
     ], 2)
     
-    Z0:dict[int, np.ndarray] = {year:energy_array[energy_array[:, 0, 0]//(10**8) == year] for year in range(int(date_irradiance_t2m_array[0, 0, 0]//(10**8)), int(date_irradiance_t2m_array[-1, 0, 0]//(10**8))+1)}
+    energy_year:np.ndarray = energy_array[:, 0, 0]//(10**8)
+    Z0:dict[int, np.ndarray] = {year:energy_array[energy_year == year] for year in range(int(energy_year[0]), int(energy_year[-1])+1)}
     
     return Z0 
 
@@ -283,9 +283,10 @@ def main() -> None:
     #Usines build
     t0 = perf_counter()
     per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
-    print('\nUsines process execution time:', perf_counter()-t0)
+    print('Usines process execution time:', perf_counter()-t0)
 
     ##################################################################################################
+    print('')
 
     period:tuple[int, int] = (20230429, 20241231)
     #period:tuple[int, int] = (20240000+m*100, 20240000+m*100+99)
