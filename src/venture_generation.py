@@ -108,7 +108,7 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
             )
             
             for city, coord_date_list in cities_dicts:
-                states_irradiance[state[:2]][city[1:8]] = {coord:np.asarray([[date, power_qtd[0], power_qtd[1]] for date, power_qtd in year_list.items()], np.int32) for coord, year_list in coord_date_list.items()}
+                states_irradiance[state[:2]][city[1:8]] = {coord:np.asarray([[date, power_qtd[0], power_qtd[1]] for date, power_qtd in year_list.items()], np.int64) for coord, year_list in coord_date_list.items()}
 
             print('%s processed'%(state[:2]))
 
