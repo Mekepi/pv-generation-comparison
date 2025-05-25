@@ -26,7 +26,7 @@ def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     Z:np.ndarray = Z0[i0:i+1]
     Z[:, :, 1] = Z[:, :, 1]/(10**6)
 
-    print('usines:', period, Z[[0,-1], 0,  0])
+    print('usines:', period, Z[[0,-1], 0,  0].astype(np.str_))
 
     x:np.ndarray = np.arange(1, Z.shape[0]+1)
     y:np.ndarray = np.arange(Z.shape[1])
@@ -59,15 +59,16 @@ def state_usines_pv_mmd_generation(state:str) -> tuple[str, np.ndarray]:
     with open('%s\\data\\usine_generation\\GERACAO_USINA-2_2000-2024_%s.csv'%(Path(dirname(abspath(__file__))).parent, state), 'r', 512*1024, encoding='utf-8') as f:
         lines:list[str] = f.readlines()[1:]
     
-    Z:np.ndarray = np.zeros((len(lines), 2), np.int64)
-    i:int = 0
+    col0:list[str] = []
+    col1:list[str] = []
     for line in lines:
-        spline:list[str] = line.split(';')
-        Z[i, 0] = spline[0][:10].replace('-', '')
-        Z[i, 1] = spline[1].replace('.', '')
-        i += 1
+        spline:list[str] = line.split(';', 1)
+        col0.append(spline[0][:10].replace('-', '', 2))
+        col1.append(spline[1].replace('.', ''))
     
-    return (state, Z.reshape((Z.shape[0]//24, 24, 2)))
+    Z:np.ndarray = (np.array([col0, col1], np.float64).T).reshape((len(col0)//24, 24, 2))
+    
+    return (state, Z)
 
 def usines_pv_mmd_generation() -> dict[str, np.ndarray]:
     if (isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\per_state_usines_pv_mmd_generation.pkl'))):
