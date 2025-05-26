@@ -74,7 +74,7 @@ def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords
     coord_date_list:defaultdict[str, defaultdict[str, list[int]]] = defaultdict(defaultdict[str, list[int]])
     for i in range(city_ventures_coords.shape[0]):
         venture_date:str = str(city_date_power[i, 0])
-        timeseries_coord:str ='(%f,%f)'%(city_timeseries_coords[idxs[i], 0], city_timeseries_coords[idxs[i], 0])
+        timeseries_coord:str ='(%.6f,%.6f)'%(city_timeseries_coords[idxs[i], 0], city_timeseries_coords[idxs[i], 1])
 
         if (timeseries_coord not in coord_date_list):
             coord_date_list[timeseries_coord] = defaultdict(list[int])
