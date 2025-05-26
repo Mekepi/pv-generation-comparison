@@ -29,9 +29,11 @@ def main() -> None:
     #states_cities_coords_array comprehension
     #print(states_cities_coords_array.keys())
     #print(states_cities_coords_array['SP'].keys())
-    #print(sorted([(coord, array.shape[0])for coord, array in states_cities_coords_array['SP']['3500105'].items()], key=lambda e: e[1]))
-    #print(states_cities_coords_array['SP']['3500105']['(-21.693625,-51.070219)'])
-    #print([date for date in states_cities_coords_array['SP']['3500105']['(-21.693625,-51.070219)'][:, 0] if not(2009<=date//10000<=2025 and 1<=(date%10000)//100<=12 and 1<=date%100<=31)]) #Error search
+    #print(sorted([(coord, array.shape[0])for coord, array in states_cities_coords_array['SP']['3541406'].items()], key=lambda e: e[1]))
+    #print(states_cities_coords_array['SP']['3541406']['(-22.016001,-22.016001)'])
+    
+    #Debugger
+    #print(*((coord, array.shape[0]) for coord, array in states_cities_coords_array['SP']['3541406'].items()), sep='\n')
     
     #Save filtered coords
     """ t0 = perf_counter()
@@ -46,7 +48,7 @@ def main() -> None:
         print('%s: %5i timeseries coords (%5.2f GiB compressed -> %5.1fmin)'%(state, subtotal, 1650*subtotal/(1024**2), 0.42981*subtotal/60))
     print('Total space required: %i timeseries (%.2f GiB after compression)'%(total, 1650*total/(1024**2)))
     print('Total minimum expected download time: Uncompressed %.2f TiB -> %.1fh'%(7.65*total/(1024**2), 0.42981*total/(60**2))) """
-
+    
     #Usines build
     t0 = perf_counter()
     per_state_usines_pv_mmd_generation:dict[str, np.ndarray] = usines_pv_mmd_generation()
