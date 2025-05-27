@@ -8,8 +8,11 @@ data/*
 outputs/*
 !outputs/plot/.gitkeep
 
+src/tools
+
 # mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
 src/__pycache__
+build
