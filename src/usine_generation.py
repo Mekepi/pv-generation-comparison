@@ -30,8 +30,7 @@ def state_usines_pv_mmd_generation(state:str) -> tuple[str, np.ndarray]:
 def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D #type: ignore
-    from matplotlib import use
-    use("Agg")
+    from matplotlib.ticker import FixedLocator, FixedFormatter
 
     if period == (0,0):
         period = (int(Z0[0, 0, 0]), int(Z0[-1, 0, 0]))
@@ -40,6 +39,8 @@ def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     i:int = int(np.argwhere(Z0[:,0,0] <= period[1])[-1, 0])
     Z:np.ndarray = Z0[i0:i+1]
     Z[:, :, 1] = Z[:, :, 1]/(10**6)
+
+    period = (int(Z[0, 0, 0]), int(Z[-1, 0, 0]))
 
     print('usines:', period, Z[[0,-1], 0,  0].astype(np.str_))
 
@@ -57,7 +58,20 @@ def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     ax.plot_surface(X, Y, Z[:,:,1], cmap='viridis')
     ax.plot(x, [y.max()]*len(x), smoothed_Z_max_Y, color='#440154', linewidth=2, label='Smoothed Z Max over X')
     ax.view_init(20, -50, 0)
-    ax.set_xlabel('Day of the Data [Day]')
+    
+    all_idxs:list[int] = list(np.unique(Z[:, 0, 0]//1_00, True)[1].astype(int))
+    idxs:list[int] = [all_idxs[i] for i in range(0, len(all_idxs), len(all_idxs)//5+1)]
+    month_labels = ['%04i-%02i'%(Z[i, 0, 0]//1_0000, Z[i, 0, 0]%1_0000/1_00) for i in idxs]
+
+    # Set the locations of the ticks to correspond to the first day of each unique month
+    x_locator = FixedLocator(idxs)
+    ax.xaxis.set_major_locator(x_locator)
+
+    # Set the labels for these ticks using the month strings
+    x_formatter = FixedFormatter(month_labels)
+    ax.xaxis.set_major_formatter(x_formatter)
+
+    ax.set_xlabel('Year-Month [YYYY-MM]')
     ax.set_ylabel('Hour of the Day [Hour]')
     ax.set_zlabel('Power [MW]')
     ax.set_title("Usines Generation Across (%02i/%i:%02i/%i)\n[%s]\n\nTotal produced: %.2f TWh"%(period[0]%10000//100, period[0]//10000, period[1]%10000//100, period[1]//10000, state, np.sum(Z[:,:,1])/(10**6)))
