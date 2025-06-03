@@ -60,7 +60,7 @@ def usine_plot(state:str, Z0:np.ndarray, period:tuple[int,int] = (0,0)) -> None:
     ax.view_init(20, -50, 0)
     
     all_idxs:list[int] = list(np.unique(Z[:, 0, 0]//1_00, True)[1].astype(int))
-    idxs:list[int] = [all_idxs[i] for i in range(0, len(all_idxs), len(all_idxs)//5+1)]
+    idxs:list[int] = [all_idxs[i] for i in range(0, len(all_idxs), len(all_idxs)//4)]
     month_labels = ['%04i-%02i'%(Z[i, 0, 0]//1_0000, Z[i, 0, 0]%1_0000/1_00) for i in idxs]
 
     # Set the locations of the ticks to correspond to the first day of each unique month
