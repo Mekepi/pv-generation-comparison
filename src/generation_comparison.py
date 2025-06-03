@@ -1,13 +1,7 @@
 import numpy as np
 from time import perf_counter
-from os.path import dirname, abspath, isfile
-from pathlib import Path
-from psutil import cpu_count
-from multiprocessing import Pool
-from gzip import open as gzopen
-from os import makedirs
 from collections import defaultdict
-import pickle
+
 
 from usine_generation import usine_plot, usines_plot, usines_pv_mmd_generation
 from venture_generation import ventures_process, save_ventures_timeseries_coords_filtered, plot_generation
@@ -25,13 +19,15 @@ def main() -> None:
     t0:float = perf_counter()
     states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = ventures_process()
     print('Ventures process execution time:', perf_counter()-t0)
-
+    
     #states_cities_coords_array comprehension
     #print(states_cities_coords_array.keys())
     #print(states_cities_coords_array['SP'].keys())
-    #print(sorted([(coord, array.shape[0])for coord, array in states_cities_coords_array['SP']['3541406'].items()], key=lambda e: e[1]))
-    #print(states_cities_coords_array['SP']['3541406']['(-22.016001,-22.016001)'])
+    #print(sorted([(coord, array.shape[0]) for coord, array in states_cities_coords_array['SP']['3541406'].items()], key=lambda e: e[1])[:-5])
+    #print(states_cities_coords_array['SP']['3541406']['(-21.899087,-51.288853)'])
     
+    #biggest sp coord: 3502101 (-20.905187,-51.370022) 908
+
     #Debugger
     #print(*((coord, array.shape[0]) for coord, array in states_cities_coords_array['SP']['3541406'].items()), sep='\n')
     
@@ -56,7 +52,7 @@ def main() -> None:
 
     ##################################################################################################
     print('')
-
+    
     period:tuple[int, int] = (20230429, 20241231)
     #period:tuple[int, int] = (20240000+m*100, 20240000+m*100+99)
 
@@ -64,7 +60,7 @@ def main() -> None:
     t0 = perf_counter()
     plot_generation(states_cities_coords_array['SP'], period, monolith=True)
     print('Ventures generetaion plot execution time:', perf_counter()-t0)
-
+    
     #Usines plot
     t0 = perf_counter()
     usine_plot('SP', per_state_usines_pv_mmd_generation['SP'], period)
