@@ -87,61 +87,76 @@ def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords
     
     return (city, coord_date_list)
 
-def coord_process(geocode:str, coord:str, date_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
-    timeseries_path:Path =  Path(dirname(abspath(__file__))).parent.joinpath('data\\timeseries\\%s\\[%s]\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, geocode, coord))
-    with gzopen(timeseries_path, 'rt', encoding='utf-8') as f:
-        lines:list[str] = f.readlines()[9:-12]
+def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict[str, defaultdict[str, dict[str, np.ndarray]]]:
 
-    min_year:int = min([int(date_power_qty_array[0,0]), 2020])
-    timeseries_array:np.ndarray = np.zeros((sum([366 if i%4==0 else 365 for i in range(min_year, 2024)])*24, 3), np.float64)
-    i0:int = sum([366 if i%4==0 else 365 for i in range(2005, min_year)])*24
-    j:int = 0
-    for line in lines[i0:]:
-        spline:list[str] = line.split(',', 6)[:-1]
-        timeseries_array[j, 0] = spline[0].replace(':', '')
-        timeseries_array[j, 1] = sum([float(v) for v in spline[1:4]])
-        timeseries_array[j, 2] = spline[5]
-        j += 1
+    if (isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'))):
+        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'rb', 40*1024*1024) as fin:
+            return pickle.load(fin)
 
-    
-    arr2024:np.ndarray = np.zeros((366*24, 3))
+    main_folder:Path = Path(dirname(abspath(__file__))).parent
 
-    arr2024[:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 1:]
-    for i in [2021, 2022, 2023]:
-        arr2024[:59*24, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][:59*24, 1:]
-        arr2024[60*24:, 1:] += timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:, 1:]
-        arr2024[59*24:60*24, 1:] += (timeseries_array[timeseries_array[:, 0]//(10**8) == i][58*24:59*24, 1:]+timeseries_array[timeseries_array[:, 0]//(10**8) == i][59*24:60*24, 1:])/2
-    arr2024[:, 1:] /= 4
+    ventures_folder:Path = Path('%s\\data\\ventures'%(main_folder))
 
-    arr2024[:, 0] = timeseries_array[timeseries_array[:, 0]//(10**8) == 2020][:, 0]%(10**8)
-    arr2024[:, 0] += 2024*(10**8)
-    
-    timeseries_array = np.concatenate((timeseries_array, arr2024))
+    timeseries_coords_folder:Path = Path('%s\\data\\timeseries_coords'%(main_folder))
 
+    states_irradiance:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = defaultdict(defaultdict[str, dict[str, np.ndarray]])
 
-    def t_correction(g:np.ndarray, t2m:np.ndarray) -> np.ndarray:
-        #Tc:np.ndarray = (t2m+g*25/800)
-        #Tc[Tc<25] = 25
+    with Pool(cpu_count()) as p:
+
+        with open("%s\\outputs\\failty_coord.csv"%(main_folder), 'w', encoding='utf-8') as f:
+            f.close()
         
-        #return (1-0.0045*(Tc-25))
-        return (1-0.0045*(np.maximum((t2m+g*25/800), 25)-25))
-    
-    Z0:dict[int, np.ndarray] = {}
-    current_power:float = 0.
-    for year in range(min_year, int(timeseries_array[-1, 0]//(10**8))+1):
-        current_power = current_power*0.995 + (date_power_qty_array[date_power_qty_array[:, 0]==year][0, 1]*1000*0.95*0.97*0.98 if (date_power_qty_array[date_power_qty_array[:, 0]==year].size>0) else 0)
-        
-        year_mask:np.ndarray = timeseries_array[:, 0]//(10**8) == year
-        
-        Z0[year] = (timeseries_array[year_mask, 1]*current_power*t_correction(timeseries_array[year_mask, 1], timeseries_array[year_mask, 2])/1000).reshape((366 if year%4==0 else 365, 24))
-    
-    return Z0 
+        for state in states.values():
+            if ((sts and not(state[:2] in sts)) or (geocodes and not(state[:2] in [states[s[:2]] for s in geocodes]))):
+                continue
 
-def coord_process_monolith(geocode:str, coord:str, date_power_qty_array:np.ndarray) -> dict[int, np.ndarray]:
+            state_timeseries_coords_folder:str = "%s\\%s"%(timeseries_coords_folder, next(f for f in listdir(timeseries_coords_folder) if f.startswith(state)))
+
+            states_irradiance[state[:2]] = defaultdict(dict[str, np.ndarray])
+
+            cities_dicts:list[tuple[str, defaultdict[str, defaultdict[str, list[np.int64]]]]] = p.starmap(
+                city_process,
+                [(main_folder, ventures_folder, state_timeseries_coords_folder, state, city) for city in listdir('%s\\%s'%(ventures_folder, state)) if not(geocodes) or (city[1:8] in geocodes)]
+            )
+            
+            for city, coord_date_list in cities_dicts:
+                states_irradiance[state[:2]][city[1:8]] = {
+                    coord:np.array([[date, power_qtd[0], power_qtd[1]] for date, power_qtd in year_list.items()], np.int64
+                    ) for coord, year_list in coord_date_list.items()
+                }
+
+            print('%s processed'%(state[:2]))
+
+    with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'wb', 40*1024*1024) as fout:
+        pickle.dump(states_irradiance, fout)
+    
+    return states_irradiance
+
+def save_ventures_timeseries_coords_filtered(states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]], monolith:bool=False) -> None:
+    '''
+    If monolith is activeded, it creates a monolith coordinates file instead of separating them into per city files.
+    '''
+    for state, cities in states_cities_coords_array.items():
+        makedirs('%s\\data\\timeseries_coords_filtered\\%s'%(Path(dirname(abspath(__file__))).parent, state), exist_ok=True)
+        
+        if monolith:
+            with open('%s\\data\\timeseries_coords_filtered\\%s\\%s_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, state), 'w', 1024**2, 'utf-8') as fout:
+                for geocode, coords in cities.items():
+                    fout.writelines(['%s,%s\n'%(coord[1:-1], geocode) for coord in coords.keys()])
+        else:
+            for geocode, coords in cities.items():
+                with open('%s\\data\\timeseries_coords_filtered\\%s\\[%s]_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, geocode), 'w', 1024**2, 'utf-8') as fout:
+                    fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
+
+def coord_generation(geocode:str, coord:str, date_power_qty_array:np.ndarray, monolith:bool) -> dict[int, np.ndarray]:
     if (date_power_qty_array[0,0]>20241231):
         return {}
     
-    timeseries_path:Path =  Path('C:\\Programas\\timeseries\\%s\\monolith\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, coord))
+    if monolith:
+        timeseries_path:Path =  Path('C:\\Programas\\timeseries\\%s\\monolith\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, coord))
+    else:
+        timeseries_path =  Path(dirname(abspath(__file__))).parent.joinpath('data\\timeseries\\%s\\[%s]\\[%s]timeseries%s.csv.gz'%(states[geocode[:2]], geocode, geocode, coord))
+    
     with gzopen(timeseries_path, 'rb', 9) as f:
         text:bytes = f.read(16*1024*1024)
     lines:list[str] = text.decode('utf-8').splitlines()[9:-12]
@@ -238,101 +253,29 @@ def coord_process_monolith(geocode:str, coord:str, date_power_qty_array:np.ndarr
     
     return Z0
 
-def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict[str, defaultdict[str, dict[str, np.ndarray]]]:
-
-    if (isfile('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'))):
-        with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'rb', 40*1024*1024) as fin:
-            return pickle.load(fin)
-
-    main_folder:Path = Path(dirname(abspath(__file__))).parent
-
-    ventures_folder:Path = Path('%s\\data\\ventures'%(main_folder))
-
-    timeseries_coords_folder:Path = Path('%s\\data\\timeseries_coords'%(main_folder))
-
-    states_irradiance:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = defaultdict(defaultdict[str, dict[str, np.ndarray]])
-
-    with Pool(cpu_count()) as p:
-
-        with open("%s\\outputs\\failty_coord.csv"%(main_folder), 'w', encoding='utf-8') as f:
-            f.close()
-        
-        for state in states.values():
-            if ((sts and not(state[:2] in sts)) or (geocodes and not(state[:2] in [states[s[:2]] for s in geocodes]))):
-                continue
-
-            state_timeseries_coords_folder:str = "%s\\%s"%(timeseries_coords_folder, next(f for f in listdir(timeseries_coords_folder) if f.startswith(state)))
-
-            states_irradiance[state[:2]] = defaultdict(dict[str, np.ndarray])
-
-            cities_dicts:list[tuple[str, defaultdict[str, defaultdict[str, list[np.int64]]]]] = p.starmap(
-                city_process,
-                [(main_folder, ventures_folder, state_timeseries_coords_folder, state, city) for city in listdir('%s\\%s'%(ventures_folder, state)) if not(geocodes) or (city[1:8] in geocodes)]
-            )
-            
-            for city, coord_date_list in cities_dicts:
-                states_irradiance[state[:2]][city[1:8]] = {
-                    coord:np.array([[date, power_qtd[0], power_qtd[1]] for date, power_qtd in year_list.items()], np.int64
-                    ) for coord, year_list in coord_date_list.items()
-                }
-
-            print('%s processed'%(state[:2]))
-
-    with open('%s\\%s'%(Path(dirname(abspath(__file__))).parent, 'data\\pickles\\states_cities_coords_array.pkl'), 'wb', 40*1024*1024) as fout:
-        pickle.dump(states_irradiance, fout)
-    
-    return states_irradiance
-
-def save_ventures_timeseries_coords_filtered(states_cities_coords_array:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]], monolith:bool=False) -> None:
-    '''
-    If monolith is activeded, it creates a monolith coordinates file instead of separating them into per city files.
-    '''
-    for state, cities in states_cities_coords_array.items():
-        makedirs('%s\\data\\timeseries_coords_filtered\\%s'%(Path(dirname(abspath(__file__))).parent, state), exist_ok=True)
-        
-        if monolith:
-            with open('%s\\data\\timeseries_coords_filtered\\%s\\%s_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, state), 'w', 1024**2, 'utf-8') as fout:
-                for geocode, coords in cities.items():
-                    fout.writelines(['%s,%s\n'%(coord[1:-1], geocode) for coord in coords.keys()])
-        else:
-            for geocode, coords in cities.items():
-                with open('%s\\data\\timeseries_coords_filtered\\%s\\[%s]_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, geocode), 'w', 1024**2, 'utf-8') as fout:
-                    fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
-
 def plot_generation(state:dict[str, dict[str, np.ndarray]], period:tuple[int, int] = (0, 0), monolith:bool = False) -> None:
     state_abbreviation:str = states[list(state.keys())[0][:2]]
 
     preZ:dict[int, np.ndarray]
     if (not(isfile('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent)))):
         preZ = {}
-        with Pool(cpu_count()) as p:
-            if monolith:
-                all_coords_dict:dict[str, tuple[str, np.ndarray]] = {key:(geocode, coords_dict[key][coords_dict[key][:,0].argsort()]) for geocode, coords_dict in state.items() for key in coords_dict.keys()}
-                
-                Z0s:list[dict[int, np.ndarray]] = p.starmap(
-                    coord_process_monolith,
-                    [(geocode__date_power_qty_array[0], coord, geocode__date_power_qty_array[1]) for coord, geocode__date_power_qty_array in all_coords_dict.items()]
-                )
-                
-                for Z0 in Z0s:
-                    for year, array in Z0.items():
-                        if year not in preZ:
-                            preZ[year] = np.zeros((366 if year%4==0 else 365, 24, 3), np.float64)
-                        preZ[year][-array.shape[0]:, :, 1:] += array[:, :, 1:]
-                        preZ[year][-array.shape[0]:, :, 0]  = array[:, :, 0]
+        with Pool(cpu_count()+2) as p:
+            all_coords_dict:dict[str, tuple[str, np.ndarray]] = {key:(geocode, coords_dict[key][coords_dict[key][:,0].argsort()]) for geocode, coords_dict in state.items() for key in coords_dict.keys()}
+            
+            Z0s:list[dict[int, np.ndarray]] = p.starmap(
+                coord_generation,
+                [(geocode__date_power_qty_array[0], coord, geocode__date_power_qty_array[1], monolith) for coord, geocode__date_power_qty_array in all_coords_dict.items()]
+            )
+            
+        for Z0 in Z0s:
+            for year, array in Z0.items():
+                if year not in preZ:
+                    preZ[year] = np.zeros((366 if year%4==0 else 365, 24, 3), np.float64)
+                preZ[year][-array.shape[0]:, :, 1:] += array[:, :, 1:]
+                preZ[year][-array.shape[0]:, :, 0]  = array[:, :, 0]
 
-            else:
-                    for geocode, coords_dict in state.items():
-                        Z0s = p.starmap(coord_process, [(geocode, coord, date_power_qty_array) for coord, date_power_qty_array in coords_dict.items()])
-                        
-                        for Z0 in Z0s:
-                            for year, array in Z0.items():
-                                if year not in preZ:
-                                    preZ[year] = np.zeros((366 if year%4==0 else 365, 24, 2))
-                                preZ[year][-array.shape[0]:] += array
-
-            with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'wb', 4*(1024**2)) as fout:
-                pickle.dump(preZ, fout)
+        with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'wb', 4*(1024**2)) as fout:
+            pickle.dump(preZ, fout)
     else:
         with open('%s\\data\\pickles\\preZ.pkl'%(Path(dirname(abspath(__file__))).parent), 'rb', 4*(1024**2)) as fin:
             preZ = pickle.load(fin)
