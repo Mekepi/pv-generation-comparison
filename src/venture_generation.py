@@ -2,13 +2,13 @@ import numpy as np
 from os import listdir
 from os.path import dirname, abspath, isfile
 from pathlib import Path
-from scipy.spatial import KDTree
 from psutil import cpu_count
 from multiprocessing import Pool
-from gzip import open as gzopen
 from os import makedirs
 from collections import defaultdict
 import pickle
+
+from compiled_venture_functions import city_process, coord_generation
 
 states:dict[str, str] = {
     "12": "AC", "27": "AL", "13": "AM", "16": "AP", "29": "BA", "23": "CE", "53": "DF",
@@ -17,7 +17,7 @@ states:dict[str, str] = {
     "11": "RO", "14": "RR", "42": "SC", "35": "SP", "28": "SE", "17": "TO"
 }
 
-def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[str, list[np.int64]]]]:
+""" def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords_folder:Path, state:str, city:str) -> tuple[str, defaultdict[str, defaultdict[str, list[np.int64]]]]:
     
     with open("%s\\%s\\%s"%(ventures_folder, state, city), 'br', 8*1024*1024) as file:
         text:bytes = file.read()
@@ -85,7 +85,7 @@ def city_process(main_folder:Path, ventures_folder:Path, state_timeseries_coords
         coord_date_list[timeseries_coord][venture_date][0] += city_date_power[i, 1]
         coord_date_list[timeseries_coord][venture_date][1] += 1
     
-    return (city, coord_date_list)
+    return (city, coord_date_list) """
 
 def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict[str, defaultdict[str, dict[str, np.ndarray]]]:
 
@@ -101,7 +101,7 @@ def ventures_process(sts:list[str] = [], geocodes:list[str] = []) -> defaultdict
 
     states_irradiance:defaultdict[str, defaultdict[str, dict[str, np.ndarray]]] = defaultdict(defaultdict[str, dict[str, np.ndarray]])
 
-    with Pool(cpu_count()) as p:
+    with Pool(cpu_count()+2) as p:
 
         with open("%s\\outputs\\failty_coord.csv"%(main_folder), 'w', encoding='utf-8') as f:
             f.close()
@@ -148,7 +148,7 @@ def save_ventures_timeseries_coords_filtered(states_cities_coords_array:defaultd
                 with open('%s\\data\\timeseries_coords_filtered\\%s\\[%s]_coords.csv'%(Path(dirname(abspath(__file__))).parent, state, geocode), 'w', 1024**2, 'utf-8') as fout:
                     fout.writelines([coord[1:-1]+'\n' for coord in coords.keys()])
 
-def coord_generation(geocode:str, coord:str, date_power_qty_array:np.ndarray, monolith:bool) -> dict[int, np.ndarray]:
+""" def coord_generation(geocode:str, coord:str, date_power_qty_array:np.ndarray, monolith:bool) -> dict[int, np.ndarray]:
     if (date_power_qty_array[0,0]>20241231):
         return {}
     
@@ -251,7 +251,7 @@ def coord_generation(geocode:str, coord:str, date_power_qty_array:np.ndarray, mo
     energy_year:np.ndarray = energy_array[:, 0, 0]//(1_0000_0000)
     Z0:dict[int, np.ndarray] = {year:energy_array[energy_year == year] for year in range(int(energy_year[0]), int(energy_year[-1])+1)}
     
-    return Z0
+    return Z0 """
 
 def plot_generation(state:dict[str, dict[str, np.ndarray]], period:tuple[int, int] = (0, 0), monolith:bool = False) -> None:
     state_abbreviation:str = states[list(state.keys())[0][:2]]
