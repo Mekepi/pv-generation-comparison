@@ -294,7 +294,7 @@ def plot_generation(state:dict[str, dict[str, np.ndarray]], period:tuple[int, in
     i:np.int64 = np.argwhere(Zm[:,0,0]//(10**4) <= period[1])[-1, 0]
     Z:np.ndarray = Zm[i0:i+1]
     Z[:, :, 1:] = Z[:, :, 1:]/(10**6)
-    usedZ:np.ndarray = Z[:, :, 1]*1.125
+    usedZ:np.ndarray = Z[:, :, 1]#*1.125
     total_energy_produced:np.float64 = np.sum(usedZ)/10**6
 
     period = (int(Z[0, 0, 0]//1_0000), int(Z[-1, 0, 0]//1_0000))

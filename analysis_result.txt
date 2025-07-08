@@ -1,0 +1,114 @@
+         395833 function calls (395769 primitive calls) in 0.266 seconds
+
+   Ordered by: cumulative time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1 0.145619 0.145619 0.265824 0.265824 d:\Programas\Github\pv-generation-comparison\src\cupy_test.py:36(t1)
+   236665 0.026399 0.000000 0.026399 0.000000 {method 'append' of 'list' objects}
+    78889 0.023991 0.000000 0.023991 0.000000 {method 'split' of 'str' objects}
+        1 0.021888 0.021888 0.021888 0.021888 {built-in method numpy.array}
+        1 0.000003 0.000003 0.015859 0.015859 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:319(read)
+     65/1 0.000961 0.000015 0.015855 0.015855 {method 'read' of '_io.BufferedReader' objects}
+       14 0.000862 0.000062 0.015239 0.001088 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\_compression.py:66(readinto)
+       14 0.000064 0.000005 0.014362 0.001026 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:502(read)
+    78891 0.012753 0.000000 0.012753 0.000000 {method 'replace' of 'str' objects}
+       13 0.011356 0.000874 0.011356 0.000874 {method 'decompress' of 'zlib._ZlibDecompressor' objects}
+        1 0.010293 0.010293 0.010293 0.010293 {method 'splitlines' of 'str' objects}
+        2 0.000011 0.000005 0.005503 0.002751 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\numeric.py:561(argwhere)
+        5 0.000010 0.000002 0.005493 0.001099 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:53(_wrapfunc)
+        2 0.000004 0.000002 0.005468 0.002734 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:1881(nonzero)
+        2 0.005460 0.002730 0.005460 0.002730 {method 'nonzero' of 'numpy.ndarray' objects}
+       15 0.002538 0.000169 0.002538 0.000169 {built-in method zlib.crc32}
+      895 0.001226 0.000001 0.001226 0.000001 {built-in method numpy.arange}
+        1 0.001059 0.001059 0.001059 0.001059 {method 'decode' of 'bytes' objects}
+        1 0.000435 0.000435 0.000435 0.000435 d:\Programas\Github\pv-generation-comparison\src\cupy_test.py:114(t_correction)
+       65 0.000021 0.000000 0.000366 0.000006 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:89(read)
+        4 0.000264 0.000066 0.000264 0.000066 {method 'astype' of 'numpy.ndarray' objects}
+        1 0.000008 0.000008 0.000254 0.000254 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:28(open)
+        1 0.000015 0.000015 0.000231 0.000231 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:152(__init__)
+        1 0.000154 0.000154 0.000189 0.000189 {built-in method _io.open}
+        3 0.000019 0.000006 0.000136 0.000045 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:3385(mean)
+        3 0.000041 0.000014 0.000117 0.000039 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\_methods.py:101(_mean)
+        2 0.000065 0.000032 0.000065 0.000032 {built-in method numpy.zeros}
+        2 0.000003 0.000002 0.000063 0.000032 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:495(_read_gzip_header)
+        2 0.000015 0.000008 0.000060 0.000030 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:446(_read_gzip_header)
+        2 0.000003 0.000002 0.000037 0.000018 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:447(__fspath__)
+        2 0.000008 0.000004 0.000034 0.000017 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:437(__str__)
+        1 0.000003 0.000003 0.000033 0.000033 {method '__exit__' of '_io._IOBase' objects}
+        1 0.000003 0.000003 0.000030 0.000030 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:350(close)
+        2 0.000021 0.000011 0.000026 0.000013 {method 'close' of '_io.BufferedReader' objects}
+        1 0.000003 0.000003 0.000024 0.000024 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:551(drive)
+        1 0.000008 0.000008 0.000022 0.000022 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:484(__init__)
+        1 0.000006 0.000006 0.000022 0.000022 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\cProfile.py:119(__exit__)
+        2 0.000001 0.000001 0.000022 0.000011 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:588(transpose)
+        1 0.000004 0.000004 0.000021 0.000021 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:407(_load_parts)
+        1 0.000004 0.000004 0.000019 0.000019 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:555(_read_eof)
+        1 0.000019 0.000019 0.000019 0.000019 {method 'copy' of 'numpy.ndarray' objects}
+       10 0.000005 0.000000 0.000017 0.000002 {built-in method builtins.isinstance}
+        3 0.000013 0.000004 0.000017 0.000006 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\_methods.py:67(_count_reduce_items)
+        3 0.000016 0.000005 0.000016 0.000005 {method 'reduce' of 'numpy.ufunc' objects}
+        6 0.000004 0.000001 0.000016 0.000003 {built-in method builtins.next}
+        1 0.000009 0.000009 0.000016 0.000016 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:387(_parse_path)
+        1 0.000016 0.000016 0.000016 0.000016 {method 'disable' of '_lsprof.Profiler' objects}
+        2 0.000008 0.000004 0.000016 0.000008 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:40(_wrapit)
+        3 0.000006 0.000002 0.000012 0.000004 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\contextlib.py:299(helper)
+        1 0.000002 0.000002 0.000012 0.000012 <frozen abc>:117(__instancecheck__)
+        6 0.000006 0.000001 0.000012 0.000002 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\_ufunc_config.py:452(_no_nep50_warning)
+        1 0.000012 0.000012 0.000012 0.000012 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\_compression.py:39(__init__)
+        1 0.000004 0.000004 0.000012 0.000012 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1157(__init__)
+        3 0.000003 0.000001 0.000011 0.000004 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\contextlib.py:141(__exit__)
+       74 0.000011 0.000000 0.000011 0.000000 {built-in method builtins.len}
+        3 0.000003 0.000001 0.000010 0.000003 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\contextlib.py:132(__enter__)
+        1 0.000003 0.000003 0.000010 0.000010 {built-in method _abc._abc_instancecheck}
+        1 0.000001 0.000001 0.000009 0.000009 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:3269(round)
+        1 0.000005 0.000005 0.000008 0.000008 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:358(__init__)
+        1 0.000001 0.000001 0.000008 0.000008 <frozen abc>:121(__subclasscheck__)
+        3 0.000008 0.000003 0.000008 0.000003 {built-in method numpy.asanyarray}
+        1 0.000002 0.000002 0.000007 0.000007 {built-in method _abc._abc_subclasscheck}
+        3 0.000006 0.000002 0.000007 0.000002 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\contextlib.py:104(__init__)
+        2 0.000006 0.000003 0.000006 0.000003 {built-in method numpy.asarray}
+        1 0.000005 0.000005 0.000006 0.000006 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1164(__new__)
+        2 0.000004 0.000002 0.000006 0.000003 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:491(_init_read)
+        1 0.000005 0.000005 0.000005 0.000005 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\_compression.py:59(close)
+        1 0.000005 0.000005 0.000005 0.000005 {method 'round' of 'numpy.ndarray' objects}
+       28 0.000005 0.000000 0.000005 0.000000 {method '__exit__' of 'memoryview' objects}
+        1 0.000002 0.000002 0.000005 0.000005 <frozen os>:1087(__subclasshook__)
+        2 0.000005 0.000002 0.000005 0.000002 {built-in method _struct.unpack}
+        2 0.000002 0.000001 0.000004 0.000002 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:430(_read_exact)
+        3 0.000003 0.000001 0.000004 0.000001 {built-in method nt.fspath}
+        3 0.000004 0.000001 0.000004 0.000001 {method 'reset' of '_contextvars.ContextVar' objects}
+       10 0.000004 0.000000 0.000004 0.000000 {built-in method builtins.getattr}
+       14 0.000004 0.000000 0.000004 0.000000 {method 'cast' of 'memoryview' objects}
+        5 0.000003 0.000001 0.000003 0.000001 {built-in method sys.intern}
+        1 0.000002 0.000002 0.000003 0.000003 <frozen ntpath>:179(splitroot)
+        3 0.000003 0.000001 0.000003 0.000001 {built-in method numpy.core._multiarray_umath.normalize_axis_index}
+        1 0.000003 0.000003 0.000003 0.000003 <frozen _collections_abc>:104(_check_methods)
+        1 0.000002 0.000002 0.000003 0.000003 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:83(__init__)
+        3 0.000002 0.000001 0.000002 0.000001 {method 'set' of '_contextvars.ContextVar' objects}
+        1 0.000001 0.000001 0.000002 0.000002 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:429(_format_parsed_parts)
+        1 0.000002 0.000002 0.000002 0.000002 {built-in method builtins.min}
+        1 0.000002 0.000002 0.000002 0.000002 {method 'reshape' of 'numpy.ndarray' objects}
+        1 0.000001 0.000001 0.000002 0.000002 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:102(prepend)
+        3 0.000001 0.000000 0.000001 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\gzip.py:346(closed)
+        6 0.000001 0.000000 0.000001 0.000000 {built-in method builtins.issubclass}
+        2 0.000001 0.000000 0.000001 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:3176(ndim)
+        2 0.000001 0.000000 0.000001 0.000000 {method 'transpose' of 'numpy.ndarray' objects}
+        1 0.000001 0.000001 0.000001 0.000001 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\_compression.py:12(_check_not_closed)
+        1 0.000001 0.000001 0.000001 0.000001 {built-in method __new__ of type object at 0x00007FFF2B5E98B0}
+        1 0.000001 0.000001 0.000001 0.000001 {built-in method builtins.sum}
+        3 0.000001 0.000000 0.000001 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:3380(_mean_dispatcher)
+        2 0.000001 0.000000 0.000001 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\numeric.py:557(_argwhere_dispatcher)
+        1 0.000001 0.000001 0.000001 0.000001 {method 'join' of 'str' objects}
+        1 0.000001 0.000001 0.000001 0.000001 {method 'startswith' of 'str' objects}
+        3 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\multiarray.py:153(concatenate)
+        1 0.000000 0.000000 0.000000 0.000000 {function DecompressReader.close at 0x000001544A71CF40}
+        2 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:584(_transpose_dispatcher)
+        2 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:1877(_nonzero_dispatcher)
+        1 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\_compression.py:160(tell)
+        2 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:3172(_ndim_dispatcher)
+        1 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\core\fromnumeric.py:3265(_round_dispatcher)
+        1 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:560(root)
+        1 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:569(_tail)
+        1 0.000000 0.000000 0.000000 0.000000 C:\Users\rapha\AppData\Local\Programs\Python\Python312\Lib\_compression.py:36(readable)
+
+

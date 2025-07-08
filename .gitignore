@@ -5,10 +5,10 @@ data/*
 !data/usine_generation/.gitkeep
 !data/ventures/.gitkeep
 
-outputs/*
-!outputs/plot/.gitkeep
+#outputs/*
+#!outputs/plot/.gitkeep
 
-src/tools
+#src/tools
 
 # mypy
 .mypy_cache/
