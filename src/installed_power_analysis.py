@@ -84,61 +84,123 @@ def gen_dates(c_date:int, days:int) -> list[int]:
     
     return dates
 
-def main() -> None:
-    st:str = 'SP'
-
-    date_power:dict[np.int64, np.int64] = {}
+def installed_power_analysis(st='') -> None:
     
-    sp = ventures_process()['SP']
-
-    for city in sp.values():
-        for coord in city.values():
-            for i in range(coord.shape[0]):
-                date:np.int64
-                power:np.int64
-                date, power, *_ = coord[i]
-                if date not in date_power:
-                    date_power[date] = np.int64(0)
-                date_power[date] += power
+    if st and st in states.values():
+        states_dicts:dict[str, dict] = {st:ventures_process()[st]}
+    if st == 'BR':
+        states_dicts = {'Brasil':{}}
+        for sd in ventures_process().values():
+            for ck, cd in sd.items():
+                states_dicts['Brasil'][ck] = cd
+    else:
+        states_dicts = ventures_process()
     
-    date_power_array:np.ndarray = np.sort(np.array(list(date_power.items()), np.int64), 0)
+    for st_key, st_dict in states_dicts.items():
+        date_power:dict[np.int64, np.int64] = {}
 
-    ml:list[int]  = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    dates:np.ndarray = np.zeros((sum([366 if i%4==0 else 365 for i in range(date_power_array[0, 0]//1_0000, date_power_array[-1, 0]//1_0000+1)]), 1))
+        i:int
+        for city in st_dict.values():
+            for coord in city.values():
+                for i in range(coord.shape[0]):
+                    date:np.int64
+                    power:np.int64
+                    date, power, *_ = coord[i]
+                    if date not in date_power:
+                        date_power[date] = np.int64(0)
+                    date_power[date] += power
+        
+        date_power_array:np.ndarray = np.sort(np.array(list(date_power.items()), np.int64), 0)
 
-    i = 0
-    for y in range((date_power_array[0, 0]//10000)*10000, (date_power_array[-1, 0]//10000)*10000+10000, 10000):
-        for m in range(100, 1300, 100):
-            for d in range(1, ml[m//100]+1):
-                dates[i, 0] = y+m+d
-                i = i+1
-                if m==200 and y%40000==0 and d==28:
-                    dates[i, 0] = y+m+29
+        ml:list[int]  = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        dates:np.ndarray = np.zeros((sum([366 if i%4==0 else 365 for i in range(date_power_array[0, 0]//1_0000, date_power_array[-1, 0]//1_0000+1)]), 1))
+
+        i = 0
+        for y in range((date_power_array[0, 0]//10000)*10000, (date_power_array[-1, 0]//10000)*10000+10000, 10000):
+            for m in range(100, 1300, 100):
+                for d in range(1, ml[m//100]+1):
+                    dates[i, 0] = y+m+d
                     i = i+1
-    
-    i0 = np.argwhere(dates==date_power_array[0, 0])[0, 0]
-    i = np.argwhere(dates==date_power_array[-1, 0])[0, 0]
-    dates = dates[i0:i+1]
-    
-    
-    power_array:np.ndarray = np.zeros(dates.shape)
-    lossless_power_array:np.ndarray = power_array.copy()
+                    if m==200 and y%40000==0 and d==28:
+                        dates[i, 0] = y+m+29
+                        i = i+1
+        
+        i0:int = np.argwhere(dates==date_power_array[0, 0])[0, 0]
+        i = np.argwhere(dates==date_power_array[-1, 0])[0, 0]
+        dates = dates[i0:i+1]
+        
+        
+        power_array:np.ndarray = np.zeros(dates.shape)
+        lossless_power_array:np.ndarray = power_array.copy()
 
-    js:np.ndarray = np.argwhere(dates[:, 0].astype(np.int64) == date_power_array[:, 0:1])[:, 1]
-     
-    for i in range(date_power_array.shape[0]):
-        power_array[js[i]:, 0] += (date_power_array[i, 1]*np.power(0.995, np.arange(power_array[js[i]:].shape[0])/365.25))
-        lossless_power_array[js[i]:, 0] += date_power_array[i, 1]
-    
-    ###########################################
-    ###########################################
+        js:np.ndarray = np.argwhere(dates[:, 0].astype(np.int64) == date_power_array[:, 0:1])[:, 1]
+        
+        for i in range(date_power_array.shape[0]):
+            power_array[js[i]:, 0] += (date_power_array[i, 1]*np.power(0.995, np.arange(power_array[js[i]:].shape[0])/365.25))
+            lossless_power_array[js[i]:, 0] += date_power_array[i, 1]
+        
+        ###########################################
+        ###########################################
 
-    import matplotlib.pyplot as plt
-    from matplotlib.axes import Axes
-    from mpl_toolkits.mplot3d import Axes3D #type: ignore
-    from matplotlib.ticker import FixedLocator, FixedFormatter
+        import matplotlib.pyplot as plt
+        from matplotlib.axes import Axes
+        from mpl_toolkits.mplot3d import Axes3D #type: ignore
+        from matplotlib.ticker import FixedLocator, FixedFormatter
 
-    Z:np.ndarray = np.concatenate((dates, power_array), 1)
+        Z:np.ndarray = np.concatenate((dates, power_array), 1)
+        
+        month_growth:list[float] = []
+        month_label:list[float] = []
+        m_number:float = (Z[0, 0]//100)%100
+        m_d1_power:float = Z[0, 1]
+        for d in range(Z.shape[0]):
+            if (m_number == (Z[d, 0]//100)%100):
+                continue
+            month_growth.append(Z[d-1, 1]/m_d1_power)
+            month_label.append(Z[d-1, 0]//100)
+            m_number = (Z[d, 0]//100)%100
+            m_d1_power = Z[d, 1]
+
+        month_growth_array:np.ndarray = np.array(month_growth, np.float64)
+
+        """ all_idxs:list[int] = list(np.unique(Z[:, 0]//1_00, True)[1])
+        idxs:list[int] = [all_idxs[i] for i in range(0, len(all_idxs), 2)]
+        month_labels = ['%04i'%(Z[:, 0][i]//1_00) for i in idxs] """
+
+        idxs:list[int] = list(i for i in range(-12, 0, 2))
+        month_labels = ['%02i-%04i'%(month_label[i]%100, month_label[i]//100) for i in idxs]
+
+        axs:list[Axes]
+        fig, axs = plt.subplots(2, 1)
+        # Remove vertical space between Axes
+        fig.subplots_adjust(hspace=5)
+
+        # Plot each graph, and manually set the y tick values
+        i0 = np.where(Z[:, 0]//100==month_label[-12])[0][0]
+        axs[0].plot(np.arange(Z.shape[0]-i0), Z[i0:, 1]/10**9, )
+        axs[0].xaxis.set_visible(False)
+        axs[0].set_ylabel('Power [GW]')
+        axs[0].set_title('PV MMDG Capacity Overview\n%s (%02i-%04i; %02i-%04i)\n\n Installed Power\n\n Current: %.2f GW'%(st_key, month_label[-12]%100, month_label[-12]//100, month_label[-1]%100, month_label[-1]//100, Z[-1, 1]/10**9))
+
+        axs[1].plot(np.arange(12), (month_growth_array[-12:]-1)*100)
+        axs[1].set_ylabel('Growth [%]')
+        axs[1].set_title('Monthly Growth\n\n Mean: %.2f %%'%((np.mean(month_growth_array[-12:])-1)*100))
+
+
+        # Set the locations of the ticks to correspond to the first day of each unique month
+        x_locator = FixedLocator(np.arange(0, 12, 2))
+        axs[1].xaxis.set_major_locator(x_locator)
+        
+        # Set the labels for these ticks using the month strings
+        x_formatter = FixedFormatter(month_labels)
+        axs[1].xaxis.set_major_formatter(x_formatter)
+
+        plt.tight_layout()
+
+        plt.savefig('%s\\outputs\\Installed Capacity Analysis\\%s-installed-capacity-analysis.png'%(Path(dirname(abspath(__file__))).parent, st_key), backend='agg', dpi=200)
+        plt.close()
+
+    return
     usedZ:np.ndarray = Z[:, 1]/(10**9)#*1.125
     current_mmdg_pv_capacity:float = float(usedZ[-1])
 
@@ -176,17 +238,19 @@ def main() -> None:
     current_x:float = x[-1]
 
     plt.plot(current_x, installed_capacity(np.array([current_x]))[0], marker='o', linestyle='-', color='black')
-    plt.annotate('Currente Total Capacity', (current_x, installed_capacity(np.array([current_x]))[0]), xytext=(-5, 5), textcoords='offset points', ha='right')
+    plt.annotate('Current Total Capacity', (current_x, installed_capacity(np.array([current_x]))[0]), xytext=(-5, 5), textcoords='offset points', ha='right')
     plt.annotate('%.2f GW'%(installed_capacity(np.array([current_x]))[0]), (current_x, installed_capacity(np.array([current_x]))[0]), xytext=(0, -15), textcoords='offset points', ha='left')
     
     plt.plot(current_x, current_mmdg_pv_capacity, marker='o', linestyle='-', color='black')
-    plt.annotate('Currente MMDG PV Capacity', (current_x, current_mmdg_pv_capacity), xytext=(-5, 5), textcoords='offset points', ha='right')
+    plt.annotate('Current MMDG PV Capacity', (current_x, current_mmdg_pv_capacity), xytext=(-5, 5), textcoords='offset points', ha='right')
     plt.annotate('%.2f GW'%(current_mmdg_pv_capacity), (current_x, current_mmdg_pv_capacity), xytext=(0, -15), textcoords='offset points', ha='left')
 
     inflexion_date:str = '%02i/%04i'%(Z_ext_date[6350]%10000//100, Z_ext_date[6350]//10000)
     plt.plot(6350, pv_mmdg_installed_capacity(np.array([6350]))[0], marker='o', linestyle='-', color='black')
     plt.annotate(f'Inflexion MMDG PV Capacity (50% of Total Capacity)', (6350, pv_mmdg_installed_capacity(np.array([6350]))[0]), xytext=(-5, 5), textcoords='offset points', ha='right')
     plt.annotate('%.2f GW'%(pv_mmdg_installed_capacity(np.array([6350]))[0]), (6350, pv_mmdg_installed_capacity(np.array([6350]))[0]), xytext=(0, -15), textcoords='offset points', ha='left')
+
+    plt.vlines(current_x, -5., 40., linestyles='dashed', color='black', alpha=0.4)
 
     plt.ylim((-5, 40))
     
@@ -262,4 +326,4 @@ def main() -> None:
     plt.close()
 
 if '__main__' == __name__:
-    main()
+    installed_power_analysis()
